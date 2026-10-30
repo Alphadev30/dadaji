@@ -1,0 +1,1569 @@
+<title>Dadaji Ki Sawaari</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow:ital,wght@0,400;0,600;0,800;1,400&family=Baloo+2:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen arcade cabinet. Full-bleed pseudo-3D canvas; HUD pinned to the safe edges; the question arrives as two road banners you steer into. */
+:root{
+  --road:#2e2925; --road-alt:#352f2a; --rumble:#efe3ca; --rumble-alt:#d33a2c;
+  --lane:#f7efe1; --field:#2d3720; --field-alt:#344029;
+  --sky-top:#160d2c; --sky-mid:#712b52; --sky-low:#df6329; --sun:#ffc247;
+  --marigold:#f5a524; --vermilion:#e5473a; --parrot:#45c46a; --royal:#3059b8;
+  --ink:#120e0b; --panel:#1d1813; --paper:#f8f1e4; --muted:#a79a85;
+  --display:"Bungee","Arial Black",sans-serif;
+  --body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --deva:"Baloo 2","Barlow",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--ink);color:var(--paper);font-family:var(--body);overflow:hidden;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+
+#cab{height:100%;display:flex;flex-direction:column}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--sky-top)}
+#road{display:block;width:100%;height:100%}
+
+/* ---------- HUD ---------- */
+.hud{position:absolute;inset:0;pointer-events:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:14px;
+  display:flex;flex-direction:column;justify-content:space-between}
+.hud-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.chip{background:rgba(18,14,11,.72);border:1.5px solid rgba(248,241,228,.16);border-radius:3px;
+  padding:5px 9px;line-height:1.1;backdrop-filter:blur(3px)}
+.chip .k{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chip .v{font-family:var(--display);font-size:17px;font-variant-numeric:tabular-nums}
+#health{display:flex;gap:5px;margin-top:6px}
+#lathi{margin-top:6px;display:flex;align-items:center;gap:7px}
+#cdwrap{width:52px;height:5px;border-radius:3px;background:rgba(248,241,228,.16);overflow:hidden}
+#cdbar{height:100%;background:var(--marigold);transition:width .08s linear}
+#toast{position:absolute;left:50%;top:34%;transform:translateX(-50%);
+  font-family:var(--display);font-size:clamp(14px,3.6vw,20px);letter-spacing:.02em;
+  text-shadow:2px 2px 0 rgba(18,14,11,.9);pointer-events:none;white-space:nowrap;
+  animation:pop .25s ease-out}
+@keyframes pop{from{transform:translateX(-50%) scale(.7);opacity:0}to{transform:translateX(-50%) scale(1);opacity:1}}
+.pip{width:15px;height:15px;border-radius:50%;border:2px solid var(--vermilion);background:var(--vermilion);
+  box-shadow:0 0 8px rgba(229,71,58,.5)}
+.pip.gone{background:transparent;border-color:rgba(248,241,228,.22);box-shadow:none}
+#streak{color:var(--marigold)}
+/* speedometer */
+#speedo{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+#dialwrap{position:relative;width:112px;background:rgba(18,14,11,.74);
+  border:1.5px solid rgba(248,241,228,.16);border-radius:4px;padding:7px 8px 5px;backdrop-filter:blur(3px)}
+#dial{display:block;width:100%;height:auto}
+#dial .arcbg{fill:none;stroke:rgba(248,241,228,.17);stroke-width:7;stroke-linecap:round}
+#dial .arcfg{fill:none;stroke:var(--marigold);stroke-width:7;stroke-linecap:round;
+  stroke-dasharray:0 999;transition:stroke-dasharray .09s linear}
+#dial .arcfg.red{stroke:var(--vermilion)}
+#dial .tick{stroke:rgba(248,241,228,.45);stroke-width:1.6}
+#dial .tick.maj{stroke:rgba(248,241,228,.8);stroke-width:2.4}
+#needle{stroke:var(--vermilion);stroke-width:2.6;stroke-linecap:round;
+  transition:transform .09s linear;transform-origin:50px 54px}
+#hubdot{fill:var(--paper)}
+#readout{position:absolute;left:0;right:0;bottom:6px;text-align:center;line-height:1}
+#kph{font-family:var(--display);font-size:19px;font-variant-numeric:tabular-nums;color:var(--paper)}
+#readout .unit{font-size:8px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+
+/* question lock */
+#opts.locked{opacity:.4;pointer-events:none;filter:saturate(.5)}
+#qhint{align-self:center;font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--marigold);font-weight:700}
+
+/* ---------- steer pads (touch) ---------- */
+#pads{position:absolute;left:0;right:0;bottom:0;display:none;gap:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));}
+#pads button{flex:1;min-width:0;height:62px;border:2px solid rgba(248,241,228,.2);border-radius:5px;
+  background:rgba(18,14,11,.6);font-family:var(--display);font-size:22px}
+#padA{flex:1.2;border-color:var(--marigold);color:var(--marigold);font-size:13px}
+#padG{flex:1.4;border-color:var(--parrot);color:var(--parrot);font-size:15px}
+#pads button{height:58px}
+body.touch #pads{display:flex}
+
+/* ---------- overlays ---------- */
+.veil{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:16px;text-align:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:20px;overflow-y:auto}
+#start,#over{background:linear-gradient(180deg,rgba(18,14,11,.82),rgba(18,14,11,.96))}
+.brand{font-family:var(--display);font-size:clamp(30px,8.4vw,58px);line-height:.98;letter-spacing:-.01em;
+  text-wrap:balance;color:var(--paper);
+  text-shadow:3px 3px 0 var(--vermilion),6px 6px 0 rgba(245,165,36,.55)}
+.sub{font-family:var(--deva);font-size:15px;color:var(--marigold);letter-spacing:.02em;margin-top:-6px}
+.lede{max-width:52ch;font-size:15px;line-height:1.5;color:#e6dbc8}
+.go{background:var(--marigold);color:var(--ink);border:0;border-radius:4px;
+  font-family:var(--display);font-size:17px;padding:13px 26px;
+  box-shadow:0 5px 0 #a86c0c;transition:transform .08s,box-shadow .08s}
+.go:active{transform:translateY(4px);box-shadow:0 1px 0 #a86c0c}
+.keys{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--muted)}
+.keys kbd{font-family:var(--body);font-weight:700;background:rgba(248,241,228,.1);
+  border:1px solid rgba(248,241,228,.2);border-radius:3px;padding:2px 7px}
+.tagline{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+
+/* ---------- question ---------- */
+#quiz{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:14px;gap:12px;
+  background:radial-gradient(120% 80% at 50% 42%,transparent 36%,rgba(18,14,11,.78) 100%)}
+#qcard{align-self:center;max-width:560px;width:100%;background:rgba(18,14,11,.9);
+  border:2px solid var(--marigold);border-radius:5px;overflow:hidden;
+  box-shadow:0 10px 34px rgba(0,0,0,.55)}
+#qbar{height:5px;background:var(--marigold);transition:width .1s linear}
+#qhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px 0}
+#qcat{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--marigold);font-weight:700}
+#qclock{font-family:var(--display);font-size:16px;color:var(--vermilion);font-variant-numeric:tabular-nums}
+#qtext{padding:4px 14px 14px;font-size:clamp(15px,4.1vw,19px);line-height:1.34;font-weight:600;text-wrap:balance}
+#opts{display:flex;gap:10px;align-items:stretch}
+.opt{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;align-items:center;
+  background:rgba(29,24,19,.94);border:2px solid rgba(248,241,228,.26);border-top-width:5px;
+  border-radius:5px;padding:12px 11px;font-size:14px;line-height:1.26;font-weight:600;text-align:center;
+  pointer-events:auto;transition:transform .09s,border-color .09s,background .09s}
+.opt:hover,.opt:focus-visible{border-color:var(--marigold);transform:translateY(-3px)}
+.opt .arrow{font-family:var(--display);font-size:16px;color:var(--marigold)}
+#optL{border-top-color:var(--royal)} #optR{border-top-color:var(--marigold)}
+
+/* ---------- verdict ---------- */
+#verdict{background:rgba(18,14,11,.9)}
+#vcard{max-width:520px;width:100%;text-align:left;background:var(--panel);border-radius:5px;
+  border:2px solid var(--parrot);border-left-width:7px;padding:16px 18px;
+  box-shadow:0 12px 36px rgba(0,0,0,.6)}
+#vcard.bad{border-color:var(--vermilion)}
+#vhead{font-family:var(--display);font-size:20px;margin:0 0 8px}
+#vwhy{font-size:14.5px;line-height:1.5;color:#eadfcd;margin:0}
+#vreal{margin:12px 0 0;padding:9px 11px;border-radius:4px;background:rgba(245,165,36,.1);
+  border-left:3px solid var(--marigold);font-size:12.5px;line-height:1.45;color:#e2d3b8}
+#vreal b{color:var(--marigold);letter-spacing:.1em;font-size:10px;text-transform:uppercase;display:block;margin-bottom:2px}
+
+/* ---------- home: title, one big button, one small one ---------- */
+.home{width:100%;max-width:440px;display:flex;flex-direction:column;align-items:center;gap:0}
+.home .brand{margin:14px 0 2px}
+.go.big{font-size:21px;padding:19px 44px;margin-top:26px;width:100%;max-width:330px}
+.ghost{margin-top:13px;width:100%;max-width:330px;background:transparent;color:var(--paper);
+  border:2px solid var(--marigold);border-radius:4px;font-family:var(--display);font-size:15px;
+  letter-spacing:.01em;padding:15px 24px;transition:background .13s,color .13s}
+.ghost:hover,.ghost:focus-visible{background:var(--marigold);color:var(--ink)}
+.toprun{margin:22px 0 0;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.toprun b{color:var(--paper);font-family:var(--display);letter-spacing:.04em}
+
+/* ---------- route picker ---------- */
+#routes{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;width:100%;max-width:580px}
+@media (max-width:520px){#routes{grid-template-columns:1fr}}
+.route{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;
+  background:var(--panel);border:2px solid rgba(248,241,228,.16);border-radius:5px;
+  padding:16px 13px;text-align:center;transition:border-color .12s,transform .12s,background .12s}
+.route:hover,.route:focus-visible{border-color:var(--marigold);transform:translateY(-3px);
+  background:rgba(245,165,36,.09)}
+.route b{font-family:var(--display);font-size:12.5px;letter-spacing:.02em;color:var(--paper)}
+.route .n{font-family:var(--display);font-size:38px;line-height:1.05;color:var(--marigold);
+  font-variant-numeric:tabular-nums}
+.route .c{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+
+/* ---------- countdown ---------- */
+#count{background:rgba(12,8,16,.62);gap:20px;backdrop-filter:blur(2px)}
+#cdnum{font-family:var(--display);font-size:clamp(64px,19vw,132px);line-height:.9;color:var(--paper);
+  text-shadow:4px 4px 0 var(--vermilion),8px 8px 0 rgba(245,165,36,.5)}
+#cdnum.go-now{color:var(--parrot);text-shadow:4px 4px 0 rgba(18,14,11,.9)}
+.ctrls{display:grid;grid-template-columns:repeat(3,auto);gap:9px 16px;justify-content:center}
+.ctrl{display:flex;flex-direction:column;align-items:center;gap:5px;
+  background:rgba(18,14,11,.78);border:1.5px solid rgba(248,241,228,.18);border-radius:4px;padding:9px 13px}
+.ctrl .ks{font-family:var(--display);font-size:15px;color:var(--marigold)}
+.ctrl .lb2{font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+
+/* ---------- deck ---------- */
+#deck{background:linear-gradient(180deg,rgba(14,10,22,.96),rgba(12,8,16,.99));justify-content:flex-start}
+.slide{width:100%;max-width:620px;display:flex;flex-direction:column;gap:14px;text-align:left;
+  margin:auto 0}
+.slide .num{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+  border-bottom:1px solid rgba(248,241,228,.12);padding-bottom:8px}
+.slide .num b{color:var(--marigold);letter-spacing:.2em}
+.slide h2{font-family:var(--display);font-size:clamp(23px,6.2vw,36px);margin:0;line-height:1.06;
+  text-wrap:balance;color:var(--paper)}
+.slide .sub{margin:-4px 0 0;font-size:15px;line-height:1.5;color:var(--marigold);max-width:38ch}
+.slide p{margin:0;font-size:14px;line-height:1.55;color:#ded2bd}
+.bul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+.bul li{position:relative;padding-left:23px;font-size:15px;line-height:1.45;color:#e8ddca}
+.bul li::before{content:"";position:absolute;left:0;top:.62em;width:11px;height:2.5px;
+  background:var(--marigold);border-radius:2px}
+.bul li b{color:var(--paper);font-weight:700}
+.bul.step{counter-reset:k}
+.bul.step li{padding-left:28px;counter-increment:k}
+.bul.step li::before{content:counter(k);top:0;left:1px;width:auto;height:auto;background:none;
+  font-family:var(--display);font-size:13px;line-height:1.45;color:var(--marigold)}
+.bul.warn li::before{background:var(--vermilion)}
+.bul.good li::before{background:var(--parrot)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:9px}
+.tile{background:var(--panel);border:1.5px solid rgba(248,241,228,.13);border-radius:4px;padding:11px 12px}
+.tile .big{display:block;font-family:var(--display);font-size:21px;color:var(--marigold);
+  font-variant-numeric:tabular-nums;line-height:1.1}
+.tile .cap{display:block;margin-top:5px;font-size:11px;line-height:1.4;color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:7px}
+.row2{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:baseline;
+  border-left:3px solid var(--marigold);background:rgba(245,165,36,.07);
+  border-radius:0 4px 4px 0;padding:8px 12px}
+.row2 b{font-family:var(--display);font-size:11.5px;letter-spacing:.04em;color:var(--marigold)}
+.row2 span{font-size:12.5px;line-height:1.45;color:#ded2bd}
+.row2.cool{border-left-color:var(--royal);background:rgba(48,89,184,.1)}
+.row2.cool b{color:#8fb0ff}
+.row2.warn{border-left-color:var(--vermilion);background:rgba(229,71,58,.09)}
+.row2.warn b{color:#ff8c82}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+@media (max-width:480px){.cols{grid-template-columns:1fr}}
+.cols h4{font-family:var(--display);font-size:11px;letter-spacing:.07em;margin:0 0 6px;color:var(--marigold)}
+.cols.b h4{color:#8fb0ff}
+.cols ul{margin:0;padding-left:15px;display:flex;flex-direction:column;gap:3px}
+.cols li{font-size:11.5px;line-height:1.4;color:#cdbfa8}
+.srcline{font-size:10px;line-height:1.5;color:var(--muted);margin:0}
+#decknav{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;width:100%;max-width:620px;padding-top:14px;margin-top:4px}
+#dots{display:flex;gap:6px}
+#dots i{width:7px;height:7px;border-radius:50%;background:rgba(248,241,228,.24);display:block}
+#dots i.on{background:var(--marigold);transform:scale(1.25)}
+.nav{background:rgba(248,241,228,.09);border:1.5px solid rgba(248,241,228,.2);color:var(--paper);
+  border-radius:4px;font-family:var(--display);font-size:12px;padding:8px 14px}
+.nav:disabled{opacity:.3}
+#deckclose{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));
+  right:max(16px,env(safe-area-inset-right,0px));background:transparent;border:0;color:var(--muted);
+  font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+#deckclose:hover{color:var(--marigold)}
+.eyebrow{margin:0;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+  text-align:center;line-height:1.6}
+.eyebrow b{color:var(--marigold);font-weight:700}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
+.how>div{min-width:0;background:var(--panel);border:1.5px solid rgba(248,241,228,.13);
+  border-top:3px solid var(--marigold);border-radius:4px;padding:10px 11px;text-align:left}
+.how b{display:block;font-family:var(--display);font-size:12px;letter-spacing:.03em;margin-bottom:4px}
+.how span{font-size:11.5px;line-height:1.4;color:#d8cbb6}
+.how>div:nth-child(2){border-top-color:var(--royal)}
+.how>div:nth-child(3){border-top-color:var(--vermilion)}
+@media (max-width:460px){.how{grid-template-columns:1fr}}
+
+/* ---------- leaderboard ---------- */
+.lb{width:100%;background:var(--panel);border:1.5px solid rgba(248,241,228,.13);border-radius:4px;
+  padding:11px 13px;text-align:left}
+.lb h3{font-family:var(--display);font-size:11.5px;letter-spacing:.09em;color:var(--marigold);
+  margin:0 0 9px;display:flex;justify-content:space-between;align-items:baseline}
+.lb h3 span{font-family:var(--body);font-size:9.5px;letter-spacing:.14em;color:var(--muted);font-weight:600}
+.lbrow{display:grid;grid-template-columns:20px 1fr auto auto;gap:9px;align-items:baseline;
+  padding:5px 0;border-top:1px solid rgba(248,241,228,.08);font-size:13px}
+.lbrow:first-of-type{border-top:0}
+.lbrow .pos{font-family:var(--display);font-size:11px;color:var(--muted)}
+.lbrow .who{font-weight:700;letter-spacing:.08em}
+.lbrow .cc{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lbrow .sc{font-family:var(--display);font-size:14px;font-variant-numeric:tabular-nums}
+.lbrow.hi{background:rgba(245,165,36,.12);margin:0 -13px;padding-left:13px;padding-right:13px}
+.lbrow.hi .sc,.lbrow.hi .who{color:var(--marigold)}
+.lb .empty{margin:0;font-size:12.5px;color:var(--muted);line-height:1.5}
+#entry{display:flex;gap:8px;align-items:center;width:100%;margin-top:10px;
+  padding-top:10px;border-top:1px solid rgba(248,241,228,.1)}
+#entry label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+#initials{width:76px;background:rgba(18,14,11,.8);border:1.5px solid var(--marigold);border-radius:3px;
+  color:var(--paper);font-family:var(--display);font-size:16px;letter-spacing:.14em;
+  padding:6px 9px;text-transform:uppercase}
+#savego{background:var(--parrot);color:var(--ink);border:0;border-radius:3px;
+  font-family:var(--display);font-size:12px;padding:8px 14px}
+.fineprint{margin:0;font-size:10.5px;line-height:1.55;color:var(--muted);text-align:center;max-width:46ch}
+
+/* ---------- results ---------- */
+#tally{width:100%;max-width:560px;display:flex;flex-direction:column;gap:12px;text-align:left}
+#scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:9px}
+.stat{background:var(--panel);border:1.5px solid rgba(248,241,228,.14);border-radius:4px;padding:10px 12px}
+.stat .k{display:block;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+#recap h3{font-family:var(--display);font-size:13px;letter-spacing:.06em;margin:4px 0 8px;color:var(--marigold)}
+#recap ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+#recap li{background:rgba(229,71,58,.09);border-left:3px solid var(--vermilion);border-radius:3px;
+  padding:8px 11px;font-size:13px;line-height:1.42}
+#recap li b{display:block;font-weight:800;margin-bottom:2px}
+#recap.clean li{background:rgba(69,196,106,.1);border-left-color:var(--parrot)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+
+<div id="cab">
+  <div id="stage">
+    <canvas id="road"></canvas>
+
+    <div class="hud" id="hud" hidden>
+      <div class="hud-row">
+        <div>
+          <div class="chip"><span class="k">Score</span><span class="v" id="score">0</span></div>
+          <div id="health"></div>
+          <div id="lathi" class="chip" style="padding:4px 8px">
+            <span class="k" style="display:inline">Lathi</span>
+            <span class="v" id="hits" style="font-size:13px">0</span>
+            <span id="cdwrap"><span id="cdbar" style="width:100%"></span></span>
+          </div>
+        </div>
+        <div class="chip" style="text-align:center"><span class="k">Checkpoint</span><span class="v" id="prog">0/12</span></div>
+        <div id="speedo">
+          <div class="chip" style="text-align:right"><span class="k">Position</span><span class="v" id="rank">P5</span></div>
+          <div id="dialwrap">
+            <svg id="dial" viewBox="0 0 100 62" aria-label="Speedometer">
+              <path class="arcbg" d="M12,54 A38,38 0 0 1 88,54"/>
+              <path class="arcfg" id="arcfg" d="M12,54 A38,38 0 0 1 88,54"/>
+              <g id="ticks"></g>
+              <line id="needle" x1="50" y1="54" x2="50" y2="22"/>
+              <circle id="hubdot" cx="50" cy="54" r="3.2"/>
+            </svg>
+            <div id="readout"><div id="kph">0</div><div class="unit">km/h</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="hud-row" style="justify-content:center">
+        <div class="chip" id="streakchip" hidden><span class="v" id="streak">Streak x2</span></div>
+      </div>
+    </div>
+
+    <div id="pads">
+      <button id="padL" aria-label="Steer left">&#9668;</button>
+      <button id="padR" aria-label="Steer right">&#9658;</button>
+      <button id="padA" aria-label="Swing the lathi">LATHI</button>
+      <button id="padG" aria-label="Throttle">GAS</button>
+    </div>
+    <div id="toast" hidden></div>
+
+    <!-- question -->
+    <div class="veil" id="quiz" hidden style="pointer-events:none">
+      <div id="qcard">
+        <div id="qbar" style="width:100%"></div>
+        <div id="qhead"><span id="qcat">Cyber safety</span><span id="qclock">10</span></div>
+        <p id="qtext"></p>
+      </div>
+      <p id="qhint" hidden></p>
+      <div id="opts">
+        <button class="opt" id="optL"><span class="arrow">&#9668; Left</span><span id="optLt"></span></button>
+        <button class="opt" id="optR"><span class="arrow">Right &#9658;</span><span id="optRt"></span></button>
+      </div>
+    </div>
+
+    <!-- verdict -->
+    <div class="veil" id="verdict" hidden>
+      <div id="vcard">
+        <h2 id="vhead"></h2>
+        <p id="vwhy"></p>
+        <p id="vreal"><b>In India</b><span id="vrealt"></span></p>
+      </div>
+      <button class="go" id="vgo">Ride on &#9658;</button>
+      <div class="keys"><span><kbd>Space</kbd> to continue</span></div>
+    </div>
+
+    <!-- start -->
+    <div class="veil" id="start">
+      <div class="home">
+        <p class="eyebrow">Prototype for the <b>CDSL Reimagine Ideathon 2026</b></p>
+        <h1 class="brand">Dadaji Ki<br>Sawaari</h1>
+        <p class="sub">&#2342;&#2366;&#2342;&#2366;&#2332;&#2368; &#2325;&#2368; &#2360;&#2357;&#2366;&#2352;&#2368;</p>
+        <p class="lede" style="max-width:34ch">He is 92. Five scammers are racing him. Every scam on this
+          road is one running in India right now.</p>
+        <button class="go big" id="startgo">Kick the engine</button>
+        <button class="ghost" id="deckgo">Gain knowledge here</button>
+        <p class="toprun" id="toprun"></p>
+      </div>
+    </div>
+
+    <!-- route -->
+    <div class="veil" id="pick" hidden>
+      <p class="eyebrow">Choose your route</p>
+      <h2 class="brand" style="font-size:clamp(22px,6vw,34px)">How far<br>is Dadaji riding?</h2>
+      <div id="routes">
+        <button class="route" data-g="6"><b>Chhota Chakkar</b><span class="n">6</span>
+          <span class="c">checkpoints &middot; about 2 min</span></button>
+        <button class="route" data-g="9"><b>Shehar Se Bahar</b><span class="n">9</span>
+          <span class="c">checkpoints &middot; about 3 min</span></button>
+        <button class="route" data-g="12"><b>Poora Highway</b><span class="n">12</span>
+          <span class="c">checkpoints &middot; about 4 min</span></button>
+      </div>
+      <p class="tagline">Three wrong answers ends any route</p>
+      <button class="ghost" id="pickback" style="max-width:200px;font-size:12px;padding:10px 18px">Back</button>
+    </div>
+
+    <!-- countdown -->
+    <div class="veil" id="count" hidden>
+      <div id="cdnum">3</div>
+      <div class="ctrls">
+        <div class="ctrl"><span class="ks">&larr; &rarr;</span><span class="lb2">Steer</span></div>
+        <div class="ctrl"><span class="ks">&uarr; / W</span><span class="lb2">Hold to go</span></div>
+        <div class="ctrl"><span class="ks">Space</span><span class="lb2">Lathi</span></div>
+      </div>
+      <p class="tagline">At a checkpoint, steer left or right to answer</p>
+    </div>
+
+    <!-- deck -->
+    <div class="veil" id="deck" hidden>
+      <button id="deckclose">Close</button>
+      <div class="slide" id="slide"></div>
+      <div id="decknav">
+        <button class="nav" id="prev">&#9668; Prev</button>
+        <div id="dots"></div>
+        <button class="nav" id="next">Next &#9658;</button>
+      </div>
+    </div>
+
+    <!-- results -->
+    <div class="veil" id="over" hidden>
+      <h2 class="brand" id="ohead" style="font-size:clamp(24px,6.6vw,40px)"></h2>
+      <div id="tally">
+        <div id="scores"></div>
+        <section class="lb" id="overboard"></section>
+        <div id="recap"></div>
+      </div>
+      <button class="go" id="again">Race again</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================ question bank ============================
+   Behaviour and recognition only. No investment advice, no securities named,
+   no trading, no personal data. Scenarios follow fraud patterns that have been
+   widely reported in India and warned about by SEBI, RBI and I4C.          */
+const BANK=[
+ {c:'cyber',q:"A caller says your demat KYC expires tonight and an OTP has been sent. He needs you to read it out.",
+  a:["Read out the OTP","Hang up, call the broker"],ok:1,
+  why:"No bank, broker or depository ever asks for an OTP. An OTP is a signature — reading it out signs the transaction for them.",
+  real:"Fake-KYC expiry calls are one of the most reported fraud scripts in the country."},
+ {c:'cyber',q:"On a video call, a “CBI officer” says a parcel in your name held drugs. He wants a verification deposit.",
+  a:["Pay to clear your name","Cut the call, dial 1930"],ok:1,
+  why:"No agency arrests anyone over a video call or takes money to clear a case. This is the digital arrest scam.",
+  real:"Digital arrest frauds have cost Indians hundreds of crores. 1930 is the national cybercrime helpline."},
+ {c:'cyber',q:"A WhatsApp message from “your bank” attaches update.apk and warns your account freezes in an hour.",
+  a:["Install the file","Delete it; update from the store"],ok:1,
+  why:"A sideloaded APK takes SMS permission and forwards every OTP silently. The urgency is there to stop you thinking.",
+  real:"Fake bank and electricity APKs on WhatsApp are the standard OTP-stealing kit here."},
+ {c:'cyber',q:"Support says your pending refund needs them to see your screen, so install this remote-desktop app.",
+  a:["Install and share the code","Refuse — nobody needs your screen"],ok:1,
+  why:"A screen-share code hands over live control of your phone, banking apps included. Genuine support never asks.",
+  real:"Remote-access apps are routinely used to empty accounts during fake refund calls."},
+ {c:'cyber',q:"You search for your broker's helpline and the first number in the results picks up instantly.",
+  a:["Trust the search result","Use the number on the official app"],ok:1,
+  why:"Fake helplines are seeded into search results and paid ads. Take support numbers only from the official app or website.",
+  real:"Fake customer-care numbers are among the highest-volume frauds reported to banks."},
+ {c:'cyber',q:"A buyer for your old scooter sends a UPI request and says approve it to RECEIVE ₹5,000.",
+  a:["Enter the PIN to receive","Decline — a PIN only pays"],ok:1,
+  why:"You never type a UPI PIN to receive money. A PIN only ever authorises money leaving your account.",
+  real:"The reversed collect-request trick is standard on second-hand marketplaces."},
+ {c:'cyber',q:"A video of a famous investor promises a government-backed scheme paying 30% a month. Link in the bio.",
+  a:["Join the group","Report it — likely a deepfake"],ok:1,
+  why:"Deepfaked faces of well-known investors and CEOs are now a standard funnel into fake trading groups.",
+  real:"SEBI has repeatedly warned investors about deepfaked endorsements of trading schemes."},
+ {c:'cyber',q:"A Telegram group of 40,000 names one small company every morning and it jumps 5% by noon.",
+  a:["Follow the calls","Leave — pump and dump"],ok:1,
+  why:"The operators buy first, use the group to pump the price, then sell into your buying. Unsolicited tips are unregistered advice.",
+  real:"SEBI has barred several operators of paid Telegram tip groups for exactly this."},
+ {c:'cyber',q:"Your trading app shows ₹8 lakh profit, but withdrawal needs a 15% tax deposit first.",
+  a:["Pay the 15%","Stop — the profit is fake"],ok:1,
+  why:"Fake-dashboard apps invent gains, then charge fee after fee to release money that was never there.",
+  real:"Fake investment and trading apps account for the largest share of India's cyber-fraud losses."},
+ {c:'cyber',q:"A paid group guarantees you IPO allotment through an “institutional quota” for a flat fee.",
+  a:["Pay for guaranteed shares","Refuse — allotment is a lottery"],ok:1,
+  why:"Oversubscribed retail allotment is a registrar-run lottery. Nobody can guarantee it, inside or outside the system.",
+  real:"Guaranteed-allotment offers spike during every busy IPO season."},
+ {c:'cyber',q:"Your phone shows no network for hours. Then the operator confirms a new SIM was issued on your number.",
+  a:["Wait and watch","Block banking and demat now"],ok:1,
+  why:"That is a SIM swap. Your OTPs are landing on someone else's phone, so every account on that number is exposed.",
+  real:"SIM-swap cases usually surface only after the money has already moved."},
+ {c:'cyber',q:"A loan app wants your contacts and photo gallery before it will approve ₹10,000.",
+  a:["Grant the access","Uninstall it"],ok:1,
+  why:"Illegal lending apps harvest contacts and photos so they can shame and threaten you later. A legitimate lender does not need either.",
+  real:"RBI and MeitY have taken down hundreds of such apps after harassment complaints."},
+ {c:'market',q:"You are opening a demat account. The nomination field is optional and you are in a hurry.",
+  a:["Skip it for now","Add the nominee immediately"],ok:1,
+  why:"Without nomination your family faces a long transmission process with paperwork and proofs. One field now saves them months.",
+  real:"Unclaimed holdings sit in the system largely because nomination was left blank."},
+ {c:'market',q:"A statement arrives every month listing every holding across all your demat accounts.",
+  a:["Ignore it, it is routine","Read it — it is your CAS"],ok:1,
+  why:"The Consolidated Account Statement is how you notice a holding you never bought or a transfer you never made.",
+  real:"The depository sends the CAS precisely so investors can audit their own accounts."},
+ {c:'market',q:"An advisor on Instagram posts screenshots of 200% returns and charges a monthly fee for calls.",
+  a:["Trust the screenshots","Check the SEBI registration number"]
+  ,ok:1,
+  why:"Only a SEBI-registered investment advisor or research analyst may advise for a fee, and the registration number is verifiable on SEBI's site.",
+  real:"Unregistered finfluencers charging for calls are a standing SEBI enforcement priority."},
+ {c:'market',q:"Your broker's dealer asks for your depository TPIN to “speed up” a sell order.",
+  a:["Share the TPIN","Never share it — you type it"],ok:1,
+  why:"The TPIN authorises shares leaving your demat account. It exists so that only you can release them.",
+  real:"Credential sharing is how most unauthorised-sale disputes begin."},
+ {c:'market',q:"A friend with a good track record offers to trade your account for you and asks for your login.",
+  a:["Give the login","Keep credentials to yourself"],ok:1,
+  why:"Credentials are yours alone. Share them and every loss, and every misuse, becomes your liability with no recourse.",
+  real:"Handing over login details voids the protection you would otherwise have in a dispute."},
+ {c:'market',q:"An SMS from the depository says shares were debited from your demat account. You sold nothing.",
+  a:["Assume it is spam","Call the broker and depository now"],ok:1,
+  why:"Those debit alerts exist so that an unauthorised transfer gets caught in hours instead of months.",
+  real:"Alerts on every debit are mandated for exactly this reason."},
+ {c:'market',q:"Your written complaint to the broker has gone unanswered for three weeks.",
+  a:["Let it go","Escalate on SEBI SCORES"],ok:1,
+  why:"SCORES is SEBI's grievance platform; if it stays unresolved, the online dispute resolution route follows.",
+  real:"Most investors never escalate, which is why knowing the route matters."},
+ {c:'market',q:"A scheme promises a fixed 3% every month, market up or market down, forever.",
+  a:["Attractively safe","A red flag"],ok:1,
+  why:"No market-linked return can be guaranteed. A fixed high payout regardless of markets is the signature of a Ponzi structure paying old investors with new money.",
+  real:"Every large collapsed deposit scheme in India advertised a guaranteed monthly return."},
+ {c:'market',q:"Money sits in a savings account for ten years earning 3% while prices rise about 6% a year.",
+  a:["It grows safely","It loses buying power"],ok:1,
+  why:"When prices rise faster than your interest, the number on the statement grows while what it can actually buy shrinks.",
+  real:"This is the quiet reason “safe” money still needs to be understood, not just stored."},
+ {c:'market',q:"All of your savings sits in one company's shares because a cousin who works there is confident.",
+  a:["Smart — inside knowledge","Risky — nothing is spread"],ok:1,
+  why:"One company's failure should not be able to take your entire savings with it. Acting on unpublished inside information is also illegal.",
+  real:"Concentration plus insider tips is the combination that wipes out first-time investors."},
+ {c:'market',q:"Before putting money into anything long-term, what should sit in an account you can reach the same day?",
+  a:["Nothing, deploy it all","A few months of expenses"],ok:1,
+  why:"Without a buffer, the first hospital bill or job gap forces you to sell at whatever price the market offers that week.",
+  real:"Lack of a buffer is the most common reason long-term plans are abandoned early."},
+ {c:'market',q:"A “broker” offers trading with no demat account, settled in cash, with no contract note.",
+  a:["Cheaper, so use it","Illegal dabba trading"],ok:1,
+  why:"Off-exchange cash settlement is illegal. You get no contract note, no settlement guarantee and no regulator to appeal to.",
+  real:"Dabba operators are prosecuted, and the clients lose everything when one disappears."},
+ {c:'market',q:"A free course promises reliable monthly income from derivatives trading with ₹20,000 of capital.",
+  a:["Reliable income","Most individual traders lose"],ok:1,
+  why:"Derivatives are leveraged instruments. SEBI's own studies found the large majority of individual traders in this segment lost money.",
+  real:"SEBI published this finding to counter exactly this kind of course marketing."},
+ {c:'market',q:"Two people invest the same monthly amount, one starting at 25 and the other at 35.",
+  a:["Barely any difference","Ten years compounds hugely"],ok:1,
+  why:"Returns earn returns, so the earliest contributions do the heaviest lifting. Starting early beats trying to catch up later.",
+  real:"Time in the market, not timing it, is the one lever a young investor fully controls."},
+ {c:'cyber',q:"An SMS warns your electricity will be cut tonight and asks you to click a link to update your meter.",
+  a:["Click and update","Ignore it, check with the utility"],ok:1,
+  why:"Urgency plus a link is the whole technique. Utilities do not disconnect over SMS links, and the page behind it harvests card and OTP details.",
+  real:"The electricity-disconnection SMS is one of the most widely circulated phishing scripts in India."},
+ {c:'cyber',q:"A seller asks you to scan a QR code to receive your refund for a cancelled order.",
+  a:["Scan the code","Refuse — scanning pays out"],ok:1,
+  why:"Scanning a QR authorises money going out of your account. There is no QR code in existence that pulls money in for you.",
+  real:"Refund-QR fraud works because the action feels passive, like showing a ticket."}
+];
+
+/* ============================ road engine ============================ */
+const cv=document.getElementById('road'), ctx=cv.getContext('2d');
+const stage=document.getElementById('stage');
+const SEG=200, RUMBLE=3, ROAD_W=2200, DRAW=190, FOV=100, CAM_H=1200, FOG=5;
+const MAX_SPEED=SEG*60, ACCEL=MAX_SPEED/4.5, DECEL=-MAX_SPEED/5, OFF_DECEL=-MAX_SPEED/1.35,
+      OFF_LIMIT=MAX_SPEED/3.4, CENTRIFUGAL=.16, SPRITE_SCALE=.46/80;
+const GATE_GAP=10, LIVES=3, READ_T=3, ANS_T=10;
+let TOTAL_GATES=12;
+const DRAG=.55;            /* let go of the throttle and the old bike just slows down */
+/* the source art is a three-quarter "back right" view, so the straight frame still
+   reads as a lean. A small counter-rotation squares it up on a straight road. */
+const STRAIGHT_FIX=-0.075;
+
+let camDepth=1/Math.tan((FOV/2)*Math.PI/180), PLAYER_Z=CAM_H*camDepth;
+let segments=[], trackLength=0;
+
+function lastY(){return segments.length?segments[segments.length-1].p2.world.y:0}
+function addSegment(curve,y){
+  const n=segments.length;
+  segments.push({index:n,curve:curve,sprites:[],cars:[],gate:null,
+    p1:{world:{y:lastY(),z:n*SEG},camera:{},screen:{}},
+    p2:{world:{y:y,z:(n+1)*SEG},camera:{},screen:{}},
+    dark:Math.floor(n/RUMBLE)%2===1});
+}
+const eIn=(a,b,p)=>a+(b-a)*p*p, eOut=(a,b,p)=>a+(b-a)*(1-(1-p)*(1-p)),
+      eInOut=(a,b,p)=>a+(b-a)*(-Math.cos(p*Math.PI)/2+.5);
+function addRoad(enter,hold,leave,curve,y){
+  const y0=lastY(), y1=y0+(y||0)*SEG, tot=enter+hold+leave;
+  for(let i=0;i<enter;i++) addSegment(eIn(0,curve,i/enter), eInOut(y0,y1,i/tot));
+  for(let i=0;i<hold;i++)  addSegment(curve,               eInOut(y0,y1,(enter+i)/tot));
+  for(let i=0;i<leave;i++) addSegment(eInOut(curve,0,i/leave), eInOut(y0,y1,(enter+hold+i)/tot));
+}
+function buildTrack(){
+  segments=[];
+  /* a turn has to last long enough to be driven, not glimpsed. Each section below
+     runs 74-140 segments, so a bend holds for a second or two at racing speed
+     instead of flicking past in a handful of frames. */
+  const S=[[40,50,40, 0,   0], [35,70,35, 3.4, 18], [30,45,30,-4.0,-14],
+           [22,34,22, 6.2, 0], [40,55,40,-2.8, 22], [25,40,25, 4.8,-18],
+           [30,50,30,-4.8,12], [20,30,20, 6.0,  0], [35,60,35,-3.4,-16],
+           [30,45,30, 4.2,20], [22,32,22,-6.0,  0], [40,50,40, 2.8,-14],
+           [30,40,30,-4.4,10], [35,55,35, 4.8,  0], [25,38,25,-6.2, 16],
+           [30,44,30, 3.6,-18]];
+  for(const s of S) addRoad(s[0],s[1],s[2],s[3],s[4]);
+  /* level the road back to its starting height, or the loop seam is a cliff
+     and the whole scene appears to teleport once a lap */
+  addRoad(26,34,26,0,-lastY()/SEG);
+  for(let i=0;i<RUMBLE*4;i++) addSegment(0,lastY());
+  trackLength=segments.length*SEG;
+  /* a board roughly every third prop, always on the right where a rider reads them */
+  /* scenery is mostly greenery; a board every seventh prop and a milestone every
+     thirteenth, so a sign is an event rather than wallpaper */
+  const FILLER=['palm','tower','palm','dhaba','palm','palm','tower'];
+  let prop=0, nb=0, nm=0, nt=0;
+  for(let n=14;n<segments.length-8;n+=9){
+    let k, kind=0;                      /* 0 filler, 1 board, 2 milestone, 3 building */
+    if(prop%7===3){ k='hoard'+(nb++%BOARDS.length); kind=1; }
+    else if(prop%13===8){ k='mile'+(nm++%MILES.length); kind=2; }
+    else if(prop%5===1){ k='bld'+(nt++%TOWNS.length); kind=3; }
+    else k=FILLER[prop%FILLER.length];
+    prop++;
+    const side=kind===1?1:((n%18<9)?-1:1);
+    const off=kind===1?1.66:(kind===3?2.5+((n*3)%4)*.4:1.4+((n*7)%5)*.24);
+    segments[n].sprites.push({key:k,offset:side*off});
+  }
+}
+function findSegment(z){return segments[Math.floor(z/SEG)%segments.length]}
+const interp=(a,b,p)=>a+(b-a)*p;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function loopZ(z,d){z=(z+d)%trackLength;while(z<0)z+=trackLength;return z}
+function fogAt(d){return 1/Math.pow(Math.E,d*d*FOG)}
+
+function project(p,cx,cy,cz,w,h){
+  p.camera.x=(p.world.x||0)-cx; p.camera.y=(p.world.y||0)-cy; p.camera.z=(p.world.z||0)-cz;
+  p.screen.scale=camDepth/p.camera.z;
+  p.screen.x=Math.round(w/2 + p.screen.scale*p.camera.x*w/2);
+  p.screen.y=Math.round(h/2 - p.screen.scale*p.camera.y*h/2);
+  p.screen.w=Math.round(   p.screen.scale*ROAD_W*w/2);
+}
+
+/* ---------- procedural sprites ---------- */
+function mk(w,h,fn){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');fn(g,w,h);return c}
+function bike(g,w,h,body,shirt,head,extra){
+  g.fillStyle='rgba(0,0,0,.34)';g.beginPath();g.ellipse(w/2,h-5,w*.3,4.5,0,0,7);g.fill();
+  g.fillStyle='#17130f';g.beginPath();g.roundRect(w*.4,h*.52,w*.2,h*.44,4);g.fill();   /* tyre */
+  g.fillStyle='#4b4440';g.beginPath();g.roundRect(w*.43,h*.66,w*.14,h*.16,3);g.fill();
+  g.fillStyle=body;g.beginPath();g.roundRect(w*.3,h*.42,w*.4,h*.2,6);g.fill();          /* seat/tank */
+  g.fillStyle='#cfc6ba';g.fillRect(w*.17,h*.38,w*.66,3.5);                              /* bars */
+  g.fillStyle=body;g.beginPath();g.arc(w*.17,h*.395,3.6,0,7);g.arc(w*.83,h*.395,3.6,0,7);g.fill();
+  g.fillStyle=shirt;g.beginPath();g.roundRect(w*.31,h*.2,w*.38,h*.26,7);g.fill();       /* torso */
+  g.strokeStyle=shirt;g.lineWidth=5;g.lineCap='round';
+  g.beginPath();g.moveTo(w*.34,h*.27);g.lineTo(w*.2,h*.37);g.moveTo(w*.66,h*.27);g.lineTo(w*.8,h*.37);g.stroke();
+  g.fillStyle=head;g.beginPath();g.arc(w/2,h*.15,w*.115,0,7);g.fill();                  /* head */
+  if(extra)extra(g,w,h);
+}
+const SPR={};
+/* Roadside signage carries the syllabus. Short enough to read at highway speed,
+   each line a thing the player should walk away knowing. */
+const BOARDS=[
+  ['OTP KISI KO','MAT BATAO','#f5a524'],
+  ['GUARANTEED RETURN','= FRAUD','#e5473a'],
+  ['CYBER HELPLINE','1930','#45c46a'],
+  ['DEMAT MEIN','NOMINEE BHARO','#f5a524'],
+  ['ADVISOR KA','SEBI NO. POOCHO','#45c46a'],
+  ['APK FILE','KABHI MAT KHOLO','#e5473a'],
+  ['SCREEN SHARE','= ACCOUNT KHAALI','#e5473a'],
+  ['SOCH KE','INVEST KARO','#f5a524']];
+const MILES=[['1930','CYBER'],['SEBI','VERIFY'],['CAS','PADHO'],['SCORES','SHIKAYAT']];
+/* generic institution names rather than real exchange or regulator marks:
+   a competition entry carrying their branding reads as implied endorsement */
+const TOWNS=[['BANK','#f5a524',5],['STOCK EXCHANGE','#45c46a',8],['DEPOSITORY','#3059b8',6],
+             ['ATM','#e8dcc6',2],['BROKER','#e5473a',4],['POST OFFICE','#f5a524',3]];
+
+function fit(g,txt,maxW,start){
+  let px=start;
+  do{ g.font='800 '+px+'px Barlow, Arial, sans-serif'; px-=1; }
+  while(px>7 && g.measureText(txt).width>maxW);
+  return px;
+}
+function hoarding(l1,l2,accent){
+  return mk(190,142,(g,w,h)=>{
+    g.fillStyle='#4b443c';g.fillRect(w*.23,h*.58,7,h*.42);g.fillRect(w*.71,h*.58,7,h*.42);
+    g.fillStyle='#0d1734';g.beginPath();g.roundRect(w*.04,h*.05,w*.92,h*.55,5);g.fill();
+    g.strokeStyle=accent;g.lineWidth=4;g.strokeRect(w*.04,h*.05,w*.92,h*.55);
+    g.textAlign='center';g.textBaseline='middle';
+    const mw=w*.82;
+    g.fillStyle='#f8f1e4'; fit(g,l1,mw,21); g.fillText(l1,w/2,h*.22);
+    g.fillStyle=accent;    fit(g,l2,mw,23); g.fillText(l2,w/2,h*.44);
+  });
+}
+function milestone(top,sub){
+  return mk(60,72,(g,w,h)=>{
+    g.fillStyle='#f2ead9';g.beginPath();g.roundRect(w*.12,h*.24,w*.76,h*.76,4);g.fill();
+    g.fillStyle='#f5a524';g.beginPath();g.roundRect(w*.12,h*.24,w*.76,h*.3,4);g.fill();
+    g.textAlign='center';g.textBaseline='middle';
+    g.fillStyle='#1b1510'; fit(g,top,w*.66,15); g.fillText(top,w/2,h*.40);
+    g.fillStyle='#4a4135'; fit(g,sub,w*.78,11); g.fillText(sub,w/2,h*.72);
+  });
+}
+function building(label,accent,storeys){
+  const W=124, H=54+storeys*23;
+  return mk(W,H,(g,w,h)=>{
+    const top=h*.17, bodyH=h-top;
+    g.fillStyle='#231d2d'; g.fillRect(w*.07,top,w*.86,bodyH);
+    g.fillStyle='#2d2639'; g.fillRect(w*.07,top,w*.11,bodyH);
+    g.fillStyle='#191423'; g.fillRect(w*.88,top,w*.05,bodyH);
+    const rows=storeys, rh=bodyH*.84/rows;
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<4;c++){
+        if((r*5+c*3)%4===0) continue;
+        g.fillStyle=(r*3+c)%5===0?'rgba(255,214,130,.86)':'rgba(255,186,88,.5)';
+        g.fillRect(w*(.21+c*.16),top+bodyH*.1+r*rh,w*.1,rh*.46);
+      }
+    }
+    g.fillStyle=accent; g.fillRect(w*.07,h*.02,w*.86,h*.13);
+    g.fillStyle='#16110d'; g.textAlign='center'; g.textBaseline='middle';
+    fit(g,label,w*.78,14); g.fillText(label,w/2,h*.085);
+  });
+}
+function buildSprites(){
+  TOWNS.forEach((t,i)=>{SPR['bld'+i]=building(t[0],t[1],t[2])});
+  SPR.dada=mk(80,80,(g,w,h)=>bike(g,w,h,'#2f6f4a','#f6f0e3','#e8c9a6',(g,w,h)=>{
+    g.fillStyle='#f28c1c';g.beginPath();g.ellipse(w/2,h*.105,w*.135,h*.055,0,Math.PI,0);g.fill(); /* pagdi */
+    g.fillStyle='#f6f0e3';g.beginPath();g.ellipse(w/2,h*.205,w*.075,h*.048,0,0,7);g.fill();       /* beard */
+  }));
+  SPR.dadaL=mk(80,80,(g,w,h)=>{g.translate(w/2,h);g.rotate(-.1);g.translate(-w/2,-h);
+    bike(g,w,h,'#2f6f4a','#f6f0e3','#e8c9a6',(g,w,h)=>{g.fillStyle='#f28c1c';g.beginPath();g.ellipse(w/2,h*.105,w*.135,h*.055,0,Math.PI,0);g.fill();
+    g.fillStyle='#f6f0e3';g.beginPath();g.ellipse(w/2,h*.205,w*.075,h*.048,0,0,7);g.fill();});});
+  SPR.dadaR=mk(80,80,(g,w,h)=>{g.translate(w/2,h);g.rotate(.1);g.translate(-w/2,-h);
+    bike(g,w,h,'#2f6f4a','#f6f0e3','#e8c9a6',(g,w,h)=>{g.fillStyle='#f28c1c';g.beginPath();g.ellipse(w/2,h*.105,w*.135,h*.055,0,Math.PI,0);g.fill();
+    g.fillStyle='#f6f0e3';g.beginPath();g.ellipse(w/2,h*.205,w*.075,h*.048,0,0,7);g.fill();});});
+  const hood=(g,w,h)=>{g.fillStyle='rgba(12,10,8,.72)';g.beginPath();g.arc(w/2,h*.15,w*.135,Math.PI,0);g.fill()};
+  SPR.r1=mk(80,80,(g,w,h)=>bike(g,w,h,'#8d2b2b','#2a2420','#6b5a4c',hood));
+  SPR.r2=mk(80,80,(g,w,h)=>bike(g,w,h,'#23407e','#1e2a3a','#6b5a4c',hood));
+  SPR.r3=mk(80,80,(g,w,h)=>bike(g,w,h,'#5c3080','#241c30','#6b5a4c',hood));
+  SPR.r4=mk(80,80,(g,w,h)=>bike(g,w,h,'#7a5a16','#2b2518','#6b5a4c',hood));
+  SPR.r5=mk(80,80,(g,w,h)=>bike(g,w,h,'#1f5e5e','#182b2b','#6b5a4c',hood));
+  SPR.palm=mk(70,150,(g,w,h)=>{g.strokeStyle='#4a3b26';g.lineWidth=6;g.beginPath();
+    g.moveTo(w/2,h);g.quadraticCurveTo(w*.42,h*.5,w*.5,h*.3);g.stroke();
+    g.fillStyle='#2b4a2a';for(let i=0;i<7;i++){const a=-Math.PI/2+(i-3)*.42;g.beginPath();g.moveTo(w/2,h*.3);
+      g.quadraticCurveTo(w/2+Math.cos(a)*34,h*.3+Math.sin(a)*30,w/2+Math.cos(a)*46,h*.3+Math.sin(a)*12);
+      g.quadraticCurveTo(w/2+Math.cos(a)*30,h*.3+Math.sin(a)*18,w/2,h*.3);g.fill();}});
+  SPR.dhaba=mk(130,100,(g,w,h)=>{g.fillStyle='#5a4126';g.fillRect(w*.1,h*.42,w*.8,h*.58);
+    g.fillStyle='#c0392b';g.beginPath();g.moveTo(w*.03,h*.44);g.lineTo(w/2,h*.14);g.lineTo(w*.97,h*.44);g.closePath();g.fill();
+    g.fillStyle='#f5a524';g.fillRect(w*.18,h*.5,w*.64,h*.17);
+    g.fillStyle='#1b1510';g.font='bold 15px Barlow,sans-serif';g.textAlign='center';g.fillText('DHABA',w/2,h*.635);
+    g.fillStyle='#2b2017';g.fillRect(w*.42,h*.74,w*.16,h*.26);});
+  MILES.forEach((m,i)=>{SPR['mile'+i]=milestone(m[0],m[1])});
+  SPR.milestone=SPR.mile0;
+  SPR.tower=mk(56,170,(g,w,h)=>{g.strokeStyle='#6d6358';g.lineWidth=3;
+    g.beginPath();g.moveTo(w*.22,h);g.lineTo(w*.44,0);g.moveTo(w*.78,h);g.lineTo(w*.56,0);g.stroke();
+    g.lineWidth=1.6;for(let y=h;y>8;y-=16){const t=1-y/h,x1=interp(w*.22,w*.44,t),x2=interp(w*.78,w*.56,t);
+      g.beginPath();g.moveTo(x1,y);g.lineTo(x2,y);g.stroke();}
+    g.fillStyle='#e5473a';g.beginPath();g.arc(w/2,6,4,0,7);g.fill();});
+  BOARDS.forEach((b,i)=>{SPR['hoard'+i]=hoarding(b[0],b[1],b[2])});
+  SPR.hoarding=SPR.hoard0;
+}
+
+/* ============================ race state ============================ */
+let state='menu', position=0, total=0, speed=0, playerX=0, tilt=0;
+let score=0, lives=LIVES, streak=0, gateNo=0, correctCount=0, missed=[], best=0;
+let gateTotal=0, gateSeg=null, shake=0, flash=0, flashCol='#45c46a';
+let timeScale=1, qIndex=0, deck=[], qStart=0, qTimer=null, answered=false;
+let atk=0, atkCd=0, hits=0, downT=0, toastT=0;
+let qPhase='read', lockL=false, lockR=false, cdT=0;
+let air=0, airV=0, lastGrad=0;   /* Road Rash style hang time over a crest */
+const RIVALS=[
+  {name:'OTP Chor',     key:'r1'},{name:'Fake Broker',   key:'r2'},
+  {name:'Tip Guru',     key:'r3'},{name:'Digital Arrest',key:'r4'},
+  {name:'Refund Bhai',  key:'r5'},{name:'APK Wala',      key:'r6'},
+  {name:'Deepfake Don', key:'r7'},{name:'Dabba King',    key:'r8'},
+  {name:'QR Thug',      key:'r9'}];
+let cars=[];
+const keys={};
+
+const el=id=>document.getElementById(id);
+const hud=el('hud'), quiz=el('quiz'), verdict=el('verdict'), startV=el('start'), overV=el('over');
+const count=el('count'), deckV=el('deck'), pickV=el('pick');
+
+function resize(){
+  const r=stage.getBoundingClientRect(), dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.width=Math.max(1,Math.round(r.width*dpr)); cv.height=Math.max(1,Math.round(r.height*dpr));
+  cv.style.width=r.width+'px'; cv.style.height=r.height+'px';
+}
+new ResizeObserver(resize).observe(stage);
+
+/* ---------- audio ---------- */
+let ac=null;
+function blip(f,d,type,gain){
+  try{ if(!ac) ac=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.type=type||'square'; o.frequency.value=f; o.connect(g); g.connect(ac.destination);
+    g.gain.setValueAtTime(gain||.05,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+d);
+    o.start(); o.stop(ac.currentTime+d);
+  }catch(e){}
+}
+const sndGood=()=>{blip(660,.09,'square',.05);setTimeout(()=>blip(990,.14,'square',.05),80)};
+const sndBad =()=>{blip(150,.26,'sawtooth',.07);setTimeout(()=>blip(96,.3,'sawtooth',.06),110)};
+const sndGate=()=>blip(300,.12,'triangle',.04);
+
+/* ---------- leaderboard (this device only) ---------- */
+const LB_KEY='dks-board', LB_MAX=5;
+function readBoard(){
+  try{
+    const v=JSON.parse(localStorage.getItem(LB_KEY)||'[]');
+    return Array.isArray(v)?v.filter(r=>r&&typeof r.s==='number'):[];
+  }catch(e){ return []; }
+}
+function writeBoard(b){ try{ localStorage.setItem(LB_KEY,JSON.stringify(b.slice(0,LB_MAX))) }catch(e){} }
+function buildTicks(){
+  let h='';
+  for(let i=0;i<=10;i++){
+    const a=Math.PI*(1-i/10), maj=i%5===0;
+    const r1=31, r0=maj?23:27;
+    h+='<line class="tick'+(maj?' maj':'')+'"'
+      +' x1="'+(50+Math.cos(a)*r1).toFixed(1)+'" y1="'+(54-Math.sin(a)*r1).toFixed(1)+'"'
+      +' x2="'+(50+Math.cos(a)*r0).toFixed(1)+'" y2="'+(54-Math.sin(a)*r0).toFixed(1)+'"/>';
+  }
+  el('ticks').innerHTML=h;
+}
+function renderBoard(host,hi){
+  const b=readBoard().slice(0,LB_MAX);
+  let h='<h3>Top runs<span>This device</span></h3>';
+  if(!b.length) h+='<p class="empty">No runs yet. The first one sets the bar.</p>';
+  else h+=b.map((r,i)=>'<div class="lbrow'+(i===hi?' hi':'')+'">'
+      +'<span class="pos">'+(i+1)+'</span>'
+      +'<span class="who">'+esc(String(r.n||'???'))+'</span>'
+      +'<span class="cc">'+(r.c|0)+'/'+(r.g||12)+'</span>'
+      +'<span class="sc">'+(r.s|0).toLocaleString('en-IN')+'</span></div>').join('');
+  host.innerHTML=h;
+}
+function paintTopRun(){
+  const t=readBoard()[0];
+  el('toprun').innerHTML = t
+    ? ('Top run &middot; <b>'+esc(String(t.n||'???'))+'</b> &middot; <b>'+(t.s|0).toLocaleString('en-IN')+'</b>')
+    : 'No runs yet';
+}
+function offerEntry(){
+  const host=el('overboard'), b=readBoard();
+  renderBoard(host,-1);
+  if(score<=0) return;
+  if(b.length>=LB_MAX && score<=b[LB_MAX-1].s) return;
+  const d=document.createElement('div');
+  d.id='entry';
+  d.innerHTML='<label for="initials">Initials</label>'
+    +'<input id="initials" maxlength="3" autocomplete="off" spellcheck="false" placeholder="ABC">'
+    +'<button id="savego" type="button">Save</button>';
+  host.appendChild(d);
+  const save=()=>{
+    const n=(el('initials').value||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,3)||'???';
+    const nb=readBoard();
+    nb.push({n:n,s:score,c:correctCount,g:TOTAL_GATES,d:Date.now()});
+    nb.sort((x,y)=>y.s-x.s);
+    writeBoard(nb);
+    renderBoard(host,nb.findIndex(r=>r.s===score&&r.n===n));
+    paintTopRun();
+    blip(620,.11,'square',.05);
+  };
+  el('savego').addEventListener('click',save);
+  el('initials').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();save()} });
+}
+
+/* ---------- the pitch deck ---------- */
+const SLIDES=[
+ {sec:'Why this matters', h:'This is happening to people like your family.',
+  body:'<div class="tiles">'
+    +'<div class="tile"><span class="big">\u20b922,495 cr</span><span class="cap">lost to cyber fraud in India, 2025</span></div>'
+    +'<div class="tile"><span class="big">76%</span><span class="cap">of it from fake investment and trading scams</span></div>'
+    +'<div class="tile"><span class="big">23 cr</span><span class="cap">demat accounts, most opened recently</span></div>'
+    +'<div class="tile"><span class="big">9.5%</span><span class="cap">of households invest at all</span></div></div>'
+    +'<p>The money is not lost to clever hacking. It is lost to five or six scripts, '
+    +'repeated millions of times, that work because nobody slowed down.</p>'},
+
+ {sec:'Rule one', h:'Six things nobody is ever allowed to ask you for.',
+  sub:'Not your bank. Not your broker. Not the depository. Not the police.',
+  body:'<ul class="bul warn">'
+    +'<li><b>An OTP.</b> It is a signature. Reading it out signs their transaction.</li>'
+    +'<li><b>Your UPI PIN.</b> A PIN only ever sends money out, never brings it in.</li>'
+    +'<li><b>Your demat TPIN.</b> It releases shares from your account.</li>'
+    +'<li><b>A password,</b> for anything, for any reason.</li>'
+    +'<li><b>Your screen.</b> A remote-access code is full control of your phone.</li>'
+    +'<li><b>A fee to receive money</b> you are owed.</li></ul>'},
+
+ {sec:'The funnel', h:'How an investment scam actually runs.',
+  sub:'Always the same five steps.',
+  body:'<ul class="bul step">'
+    +'<li>A video of a famous investor promises fixed monthly returns. It is a deepfake.</li>'
+    +'<li>A WhatsApp or Telegram group, thousands of members, most of them fake.</li>'
+    +'<li>An app you install from a link, not from the store.</li>'
+    +'<li>Your profit climbs daily on screen. You put in more.</li>'
+    +'<li>You try to withdraw. Now there is a tax, a fee, a penalty. There was never any money.</li></ul>'},
+
+ {sec:'Red flags', h:'Five seconds is enough to spot one.',
+  body:'<ul class="bul warn">'
+    +'<li><b>"Guaranteed returns."</b> No market-linked return can be guaranteed. Ever.</li>'
+    +'<li><b>Urgency.</b> Offer closes tonight, account freezes in an hour, parcel seized.</li>'
+    +'<li><b>No SEBI registration number.</b> Advising for a fee without one is illegal.</li>'
+    +'<li><b>Pay something to withdraw.</b> Real money never needs a fee to come out.</li>'
+    +'<li><b>Cash settled, no contract note.</b> That is dabba trading, and it is illegal.</li></ul>'},
+
+ {sec:'Your account', h:'Five minutes, once. Protects everything after.',
+  body:'<ul class="bul good">'
+    +'<li><b>Add a nominee.</b> Without it your family faces months of paperwork.</li>'
+    +'<li><b>Read your CAS.</b> The depository statement is how you spot a holding you never bought.</li>'
+    +'<li><b>Verify the SEBI number</b> of anyone advising you. It is checkable on SEBI\u2019s site.</li>'
+    +'<li><b>Never share credentials,</b> not even with family who are helping.</li>'
+    +'<li><b>Act on debit alerts the same day.</b> They exist to catch theft in hours.</li></ul>'},
+
+ {sec:'If it goes wrong', h:'The first hour decides how much comes back.',
+  body:'<ul class="bul step">'
+    +'<li>Call <b>1930</b>, the national cybercrime helpline. Immediately.</li>'
+    +'<li>File at <b>cybercrime.gov.in</b> while the details are fresh.</li>'
+    +'<li>Block the SIM and freeze banking if OTPs stopped arriving.</li>'
+    +'<li>For a broker or demat dispute, complain on <b>SEBI SCORES</b>.</li>'
+    +'<li><b>Never pay more</b> to release money. That is the second half of the same scam.</li></ul>'
+    +'<p class="srcline">Shame is what keeps most of this unreported. Reporting fast is the only thing '
+    +'that has ever recovered money.<br><br>Prototype for the CDSL Reimagine Ideathon 2026 \u00b7 '
+    +'built with AI assistance, disclosed.</p>'}
+];
+let slideN=0;
+function showSlide(i){
+  slideN=clamp(i,0,SLIDES.length-1);
+  const sl=SLIDES[slideN];
+  el('slide').innerHTML='<p class="num"><b>'+sl.sec+'</b><span>'+(slideN+1)+' / '+SLIDES.length+'</span></p>'
+    +'<h2>'+sl.h+'</h2>'+(sl.sub?'<p class="sub">'+sl.sub+'</p>':'')+sl.body;
+  el('dots').innerHTML=SLIDES.map((_,n)=>'<i class="'+(n===slideN?'on':'')+'"></i>').join('');
+  el('prev').disabled=slideN===0;
+  el('next').disabled=slideN===SLIDES.length-1;
+  deckV.scrollTop=0;
+}
+function openDeck(){ showSlide(0); setState('deck'); }
+
+/* ---------- question deck ---------- */
+function buildDeck(){
+  const pick=(c,n)=>{const p=BANK.filter(q=>q.c===c);
+    for(let i=p.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[p[i],p[j]]=[p[j],p[i]]}return p.slice(0,n)};
+  const nC=Math.ceil(TOTAL_GATES/2);
+  deck=pick('cyber',nC).concat(pick('market',TOTAL_GATES-nC));
+  for(let i=deck.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[deck[i],deck[j]]=[deck[j],deck[i]]}
+  /* randomise which side holds the correct answer */
+  deck=deck.map(q=>{const flip=Math.random()<.5;
+    return flip?{...q,a:[q.a[1],q.a[0]],ok:1-q.ok}:{...q}});
+}
+
+function newRace(){
+  position=0; total=0; speed=0; playerX=0; tilt=0;
+  score=0; lives=LIVES; streak=0; gateNo=0; correctCount=0; missed=[];
+  timeScale=1; shake=0; flash=0; qIndex=0; answered=false;
+  atk=0; atkCd=0; hits=0; downT=0; toastT=0;
+  air=0; airV=0; lastGrad=0;
+  for(const s of segments) s.cars.length=0;
+  cars=RIVALS.map((r,i)=>{
+    const c={name:r.name,key:r.key,offset:(i-4)*.23,total:2600+i*2100,
+             speed:MAX_SPEED*(.905+i*.0085),z:0,stun:0,aggro:0,spark:0};
+    c.z=loopZ(c.total,0); findSegment(c.z).cars.push(c); return c;
+  });
+  cdT=3.999;
+  setState('countdown');
+  paintHud();
+}
+function scheduleGate(){
+  if(gateSeg){gateSeg.gate=null;gateSeg=null}
+  if(gateNo>=TOTAL_GATES){gateTotal=Infinity;return}
+  const ahead=Math.max(speed*GATE_GAP, 34*SEG);
+  gateTotal=total+ahead;
+  gateSeg=segments[Math.floor(loopZ(gateTotal,0)/SEG)%segments.length];
+  gateSeg.gate={n:gateNo+1};
+}
+
+function setState(s){
+  state=s;
+  hud.hidden   = !(s==='race'||s==='question'||s==='verdict'||s==='down'||s==='countdown');
+  count.hidden = s!=='countdown';
+  quiz.hidden  = s!=='question';
+  verdict.hidden= s!=='verdict';
+  startV.hidden= s!=='menu';
+  overV.hidden = s!=='over';
+  deckV.hidden = s!=='deck';
+  pickV.hidden = s!=='pick';
+  quiz.style.pointerEvents = s==='question' ? 'auto':'none';
+}
+
+/* ---------- HUD ---------- */
+function paintHud(){
+  el('score').textContent=score.toLocaleString('en-IN');
+  el('prog').textContent=Math.min(gateNo+(state==='question'?1:0),TOTAL_GATES)+'/'+TOTAL_GATES;
+  const sp=clamp(speed/MAX_SPEED,0,1);
+  el('kph').textContent=Math.round(sp*180);
+  el('needle').setAttribute('transform','rotate('+(-90+sp*180).toFixed(1)+' 50 54)');
+  const fg=el('arcfg');
+  fg.style.strokeDasharray=(119.4*sp).toFixed(1)+' 999';
+  fg.classList.toggle('red',sp>.88);
+  let ahead=0; for(const c of cars) if(c.total>total) ahead++;
+  el('rank').textContent='P'+(ahead+1);
+  const h=el('health'); if(h.children.length!==LIVES){h.innerHTML='';
+    for(let i=0;i<LIVES;i++){const d=document.createElement('span');d.className='pip';h.appendChild(d)}}
+  [...h.children].forEach((d,i)=>d.className='pip'+(i<LIVES-lives?' gone':''));
+  el('hits').textContent=hits;
+  const cd=el('cdbar'); cd.style.width=(100-atkCd/0.8*100)+'%';
+  const sc=el('streakchip');
+  if(streak>=2){sc.hidden=false;el('streak').textContent='Streak x'+streak}else sc.hidden=true;
+}
+
+/* ---------- the lathi ---------- */
+function toast(msg,col){
+  const t=el('toast'); t.textContent=msg; t.style.color=col||'#f5a524';
+  t.hidden=false; toastT=1.1;
+}
+function swing(){
+  if(state!=='race'||atkCd>0) return;
+  atk=.42; atkCd=.8;
+  blip(170,.07,'square',.045);
+  let got=null, bestDz=1e9;
+  for(const c of cars){
+    const dz=c.total-total;
+    if(dz>-2400 && dz<4600 && Math.abs(c.offset-playerX)<.9 && dz<bestDz){ got=c; bestDz=dz; }
+  }
+  if(!got) return;
+  got.total-=7400; got.stun=1.2; got.aggro=-1.4; got.spark=.45;
+  hits++; score+=150; flash=.55; flashCol='#ffc247';
+  blip(540,.1,'square',.055); setTimeout(()=>blip(290,.17,'sawtooth',.05),70);
+  toast('LATHI! '+got.name+' +150');
+  paintHud();
+}
+function rivalSwing(c){
+  c.aggro=-2.2; speed*=.62; shake=1; score=Math.max(0,score-60);
+  flash=.5; flashCol='#e5473a';
+  blip(120,.22,'sawtooth',.06);
+  toast(c.name+' shoved you back', '#e5473a');
+  paintHud();
+}
+function down(){ setState('down'); downT=1.9; shake=1; timeScale=1; blip(90,.5,'sawtooth',.07); }
+
+/* ---------- question flow ---------- */
+function askQuestion(){
+  const q=deck[qIndex];
+  if(!q){finish('flag');return}
+  answered=false;
+  el('qcat').textContent = q.c==='cyber'?'Cyber safety':'Market basics';
+  el('qtext').textContent=q.q;
+  el('optLt').textContent=q.a[0];
+  el('optRt').textContent=q.a[1];
+  el('qbar').style.width='100%'; el('qclock').textContent=READ_T;
+  /* keys already held for steering must not count as an answer */
+  qPhase='read'; lockL=!!keys.left; lockR=!!keys.right;
+  el('opts').classList.add('locked');
+  el('qhint').hidden=false; el('qhint').textContent='Read it \u2014 answers unlock in '+READ_T+'s';
+  qStart=performance.now();
+  timeScale=.12;
+  setState('question'); sndGate(); paintHud();
+}
+function tickClock(){
+  if(state!=='question')return;
+  const t=(performance.now()-qStart)/1000;
+  if(qPhase==='read'){
+    const left=Math.max(0,READ_T-t);
+    el('qclock').textContent=Math.ceil(left);
+    el('qhint').textContent='Read it \u2014 answers unlock in '+Math.ceil(left)+'s';
+    if(left<=0){
+      qPhase='answer'; qStart=performance.now();
+      el('opts').classList.remove('locked');
+      el('qhint').hidden=true;
+      el('qclock').textContent=ANS_T;
+      blip(430,.07,'triangle',.04);
+    }
+    return;
+  }
+  const left=Math.max(0,ANS_T-t);
+  el('qbar').style.width=(left/ANS_T*100)+'%';
+  el('qclock').textContent=Math.ceil(left);
+  if(left<=0 && !answered) answer(-1);
+}
+function answer(side){
+  if(state!=='question'||answered||qPhase!=='answer')return;
+  answered=true;
+  const q=deck[qIndex], right=side===q.ok;
+  if(right){
+    streak++; correctCount++;
+    const bonus=100+Math.round(speed/MAX_SPEED*60)+(streak>=2?streak*25:0);
+    score+=bonus; speed=Math.min(MAX_SPEED*1.08,speed+MAX_SPEED*.3);
+    flash=1; flashCol='#45c46a'; sndGood();
+    for(const c of cars) if(c.total>total && c.total-total<9000) c.total=total-1400;
+  }else{
+    streak=0; lives--; speed*=.42; shake=1;
+    flash=1; flashCol='#e5473a'; sndBad();
+    missed.push(q);
+    for(const c of cars) c.total+=5200;
+  }
+  const v=el('vcard');
+  v.className=right?'':'bad';
+  el('vhead').textContent = right ? (side===q.ok&&streak>2?'Shaabaash!':'Correct') : (side<0?'Out of time':'Wrong turn');
+  el('vhead').style.color = right?'var(--parrot)':'var(--vermilion)';
+  el('vwhy').textContent = (side<0?'The checkpoint closed on you. ':'')+q.why;
+  el('vrealt').textContent=' '+q.real;
+  qIndex++; gateNo++;
+  timeScale=0;
+  setState('verdict'); paintHud();
+  setTimeout(()=>el('vgo').focus(),30);
+}
+function resume(){
+  if(state!=='verdict')return;
+  timeScale=1;
+  if(lives<=0){down();return}
+  if(gateNo>=TOTAL_GATES){finish('flag');return}
+  scheduleGate(); setState('race'); paintHud();
+}
+function finish(how){
+  timeScale=1;
+  let ahead=0; for(const c of cars) if(c.total>total) ahead++;
+  const pos=ahead+1;
+  if(score>best){best=score; try{localStorage.setItem('dks-best',String(best))}catch(e){}}
+  el('ohead').textContent = how==='out' ? 'Bike impounded' : (pos===1?'Dadaji wins':'Flag down — P'+pos);
+  el('scores').innerHTML=
+    stat('Score',score.toLocaleString('en-IN'))+
+    stat('Correct',correctCount+'/'+TOTAL_GATES)+
+    stat('Finish',how==='out'?'DNF':'P'+pos)+
+    stat('Lathi hits',hits)+
+    stat('Best',Math.max(best,score).toLocaleString('en-IN'));
+  offerEntry();
+  const r=el('recap');
+  if(missed.length){
+    r.className='';
+    r.innerHTML='<h3>Carry these home</h3><ul>'+missed.map(q=>
+      '<li><b>'+esc(q.a[q.ok])+'</b>'+esc(q.why)+'</li>').join('')+'</ul>';
+  }else{
+    r.className='clean';
+    r.innerHTML='<h3>Clean sheet</h3><ul><li><b>'+TOTAL_GATES+' checkpoints, no wrong turns.</b>'+
+      'Dadaji refused every OTP, every guaranteed return and every remote-access app on the road.</li></ul>';
+  }
+  setState('over');
+}
+const stat=(k,v)=>'<div class="stat"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>';
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ============================ update ============================ */
+function update(dt){
+  if(state==='menu'||state==='over'||state==='deck'||state==='pick')return;
+  if(state==='countdown'){
+    cdT-=dt;
+    speed=Math.min(MAX_SPEED*.35,speed+ACCEL*.35*dt);
+    position=loopZ(position,speed*dt); total+=speed*dt;
+    const n=Math.ceil(cdT-1);
+    const big=el('cdnum');
+    if(cdT<=1){ if(big.textContent!=='GO'){ big.textContent='GO'; big.className='go-now'; blip(760,.22,'square',.06);} }
+    else if(big.textContent!==String(n)){ big.textContent=n; big.className=''; blip(380,.12,'triangle',.05); }
+    if(cdT<=0){ scheduleGate(); setState('race'); }
+    paintHud();
+    return;
+  }
+  if(state==='down'){
+    downT-=dt; speed*=Math.pow(.04,dt);
+    position=loopZ(position,speed*dt); total+=speed*dt;
+    shake=Math.max(0,shake-dt*1.1);
+    if(downT<=0) finish('out');
+    return;
+  }
+  const ds=dt*timeScale;
+  const seg=findSegment(position+PLAYER_Z);
+  const speedPct=speed/MAX_SPEED;
+  const dx=ds*2.1*speedPct;
+
+  if(state==='race'){
+    /* the faster he goes the less the bars do, so a hairpin has to be braked for */
+    const grip=1-.12*speedPct;
+    if(keys.left){playerX-=dx*grip;tilt=-1}
+    else if(keys.right){playerX+=dx*grip;tilt=1}
+    else tilt=0;
+    atk=Math.max(0,atk-dt); atkCd=Math.max(0,atkCd-dt);
+    playerX-=dx*CENTRIFUGAL*speedPct*seg.curve;
+    if(keys.down)    speed+=DECEL*2.2*ds;
+    else if(keys.up) speed+=ACCEL*ds;
+    else             speed+=DECEL*DRAG*ds;
+    speed=clamp(speed,0,MAX_SPEED);
+    if((playerX<-1||playerX>1)&&speed>OFF_LIMIT) speed+=OFF_DECEL*ds;
+    playerX=clamp(playerX,-2.1,2.1);
+  }else tilt=0;
+
+  /* crest launch: a road that stops climbing faster than the bike can follow */
+  const grad=(seg.p2.world.y-seg.p1.world.y)/SEG;
+  if(state==='race'){
+    const drop=lastGrad-grad;
+    if(drop>0.004 && speed>MAX_SPEED*.45) airV=Math.max(airV,drop*speed*.085);
+    lastGrad=grad;
+  }
+  airV-=3400*ds;
+  air+=airV*ds;
+  if(air<=0){ if(airV<-900) shake=Math.min(1,shake+.3); air=0; airV=0; }
+
+  position=loopZ(position,speed*ds);
+  total+=speed*ds;
+
+  for(const c of cars){
+    const old=findSegment(c.z);
+    c.stun=Math.max(0,c.stun-dt); c.spark=Math.max(0,c.spark-dt);
+    if(state==='race'){
+      const dz=c.total-total;
+      if(Math.abs(dz)<2000 && Math.abs(c.offset-playerX)<.75){
+        c.aggro+=dt; if(c.aggro>1.7) rivalSwing(c);
+      } else c.aggro=Math.max(0,c.aggro-dt*.7);
+    }
+    /* rubber band: they chase when dropped, ease off when far ahead */
+    const lead=total-c.total;
+    const band=lead>9000?1.2:(lead>3000?1.08:(lead<-26000?.92:1));
+    c.total+=c.speed*ds*(c.stun>0?.45:1)*band*(1+.05*Math.sin(total/9000+c.offset*4));
+    c.z=loopZ(c.total,0);
+    const now=findSegment(c.z);
+    if(old!==now){const i=old.cars.indexOf(c);if(i>=0)old.cars.splice(i,1);now.cars.push(c)}
+  }
+
+  if(state==='race'&&total>=gateTotal) askQuestion();
+  shake=Math.max(0,shake-dt*2.4);
+  flash=Math.max(0,flash-dt*2.2);
+  if(toastT>0){ toastT-=dt; if(toastT<=0) el('toast').hidden=true; }
+  if(state==='race') paintHud();
+}
+
+/* ============================ render ============================ */
+function ringPath(cx,cy,R){
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(-.3);
+  ctx.strokeStyle='rgba(255,196,110,.5)'; ctx.lineWidth=R*.17;
+  ctx.beginPath(); ctx.ellipse(0,0,R*1.72,R*.4,0,0,7); ctx.stroke();
+  ctx.strokeStyle='rgba(255,164,86,.26)'; ctx.lineWidth=R*.075;
+  ctx.beginPath(); ctx.ellipse(0,0,R*2.06,R*.5,0,0,7); ctx.stroke();
+  ctx.restore();
+}
+function drawSaturn(cx,cy,R){
+  ctx.save();
+  ctx.beginPath(); ctx.rect(cx-R*3,cy-R*3,R*6,R*3); ctx.clip(); ringPath(cx,cy,R);
+  ctx.restore();
+  const g=ctx.createRadialGradient(cx-R*.34,cy-R*.38,R*.08,cx,cy,R);
+  g.addColorStop(0,'#ffd591'); g.addColorStop(.5,'#df8c4c'); g.addColorStop(1,'#883a56');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.clip();
+  ctx.fillStyle='rgba(124,54,78,.32)';
+  ctx.fillRect(cx-R,cy-R*.46,R*2,R*.15);
+  ctx.fillRect(cx-R,cy+R*.06,R*2,R*.2);
+  ctx.fillStyle='rgba(255,220,160,.16)'; ctx.fillRect(cx-R,cy-R*.16,R*2,R*.1);
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath(); ctx.rect(cx-R*3,cy,R*6,R*3); ctx.clip(); ringPath(cx,cy,R);
+  ctx.restore();
+  ctx.restore();
+}
+function drawSky(w,h,horizon,drift){
+  const g=ctx.createLinearGradient(0,0,0,horizon+2);
+  g.addColorStop(0,'#160d2c'); g.addColorStop(.52,'#712b52'); g.addColorStop(1,'#df6329');
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,horizon+2);
+  const sx=w*.5-drift*.22, sy=horizon-h*.055;
+  const sg=ctx.createRadialGradient(sx,sy,2,sx,sy,h*.17);
+  sg.addColorStop(0,'rgba(255,206,86,.95)'); sg.addColorStop(.42,'rgba(255,170,52,.5)'); sg.addColorStop(1,'rgba(255,150,40,0)');
+  ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx,sy,h*.17,0,7); ctx.fill();
+  ctx.fillStyle='#ffc247'; ctx.beginPath(); ctx.arc(sx,sy,h*.052,0,7); ctx.fill();
+  /* stars, high and faint */
+  ctx.fillStyle='rgba(255,240,210,.5)';
+  for(let i=0;i<34;i++){
+    const sxx=((i*229-drift*.06)%(w+60)+w+60)%(w+60)-30;
+    const syy=(i*137)%Math.max(1,horizon*.56);
+    ctx.fillRect(sxx,syy,i%7===0?2:1.3,i%7===0?2:1.3);
+  }
+  /* the ringed planet: parallax slower than anything else, so it reads as far away */
+  drawSaturn(w*.21-drift*.1, horizon-h*.40, h*.105);
+  /* far skyline */
+  ctx.fillStyle='rgba(28,16,36,.72)';
+  for(let i=0;i<26;i++){
+    const bx=((i*137-drift*.5)%(w+180)+w+180)%(w+180)-90;
+    const bw=22+(i*37)%46, bh=h*.028+((i*53)%40)/40*h*.07;
+    ctx.fillRect(bx,horizon-bh,bw,bh+2);
+  }
+  ctx.fillStyle='#2d3720'; ctx.fillRect(0,horizon,w,h-horizon);
+}
+function poly(x1,y1,x2,y2,x3,y3,x4,y4,col){
+  ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.lineTo(x4,y4);ctx.closePath();ctx.fill();
+}
+function renderSeg(w,lanes,x1,y1,w1,x2,y2,w2,fog,dark){
+  const r1=w1/Math.max(6,30-lanes*2), r2=w2/Math.max(6,30-lanes*2);
+  const l1=w1/(lanes*22), l2=w2/(lanes*22);
+  poly(0,y1,w,y1,w,y2,0,y2, dark?'#2d3720':'#36402a');
+  poly(x1-w1-r1,y1,x1-w1,y1,x2-w2,y2,x2-w2-r2,y2, dark?'#efe3ca':'#d33a2c');
+  poly(x1+w1+r1,y1,x1+w1,y1,x2+w2,y2,x2+w2+r2,y2, dark?'#efe3ca':'#d33a2c');
+  poly(x1-w1,y1,x1+w1,y1,x2+w2,y2,x2-w2,y2, dark?'#2e2925':'#352f2a');
+  if(dark){
+    const lw1=w1*2/lanes, lw2=w2*2/lanes;
+    let lx1=x1-w1+lw1, lx2=x2-w2+lw2;
+    for(let l=1;l<lanes;l++){
+      poly(lx1-l1,y1,lx1+l1,y1,lx2+l2,y2,lx2-l2,y2,'rgba(247,239,225,.62)');
+      lx1+=lw1; lx2+=lw2;
+    }
+  }
+  if(fog<1){ctx.globalAlpha=1-fog;ctx.fillStyle='#2a1a2e';ctx.fillRect(0,y2,w,y1-y2);ctx.globalAlpha=1}
+}
+function drawSprite(w,img,scale,destX,destY,offX,offY,clipY){
+  const dw=img.width*(img.mul||1)*scale*w/2*(SPRITE_SCALE*ROAD_W);
+  const dh=dw*(img.height/img.width);
+  destX+=dw*(offX||0); destY+=dh*(offY||0);
+  if(dw>5) contactShadow(destX+dw/2,destY+dh,dw);
+  const clipH=clipY?Math.max(0,destY+dh-clipY):0;
+  if(clipH<dh) ctx.drawImage(img,0,0,img.width,img.height-img.height*clipH/dh,destX,destY,dw,dh-clipH);
+  return dw;
+}
+/* a soft ellipse where the sprite meets the tarmac: the single biggest thing
+   stopping a cut-out PNG from reading as a sticker */
+function contactShadow(cx,by,dw){
+  const a=ctx.globalAlpha;
+  const g=ctx.createRadialGradient(cx,by,0,cx,by,dw*.46);
+  g.addColorStop(0,'rgba(10,6,14,.46)'); g.addColorStop(1,'rgba(10,6,14,0)');
+  ctx.globalAlpha=a*.9; ctx.fillStyle=g;
+  ctx.beginPath(); ctx.ellipse(cx,by-dw*.012,dw*.46,dw*.1,0,0,7); ctx.fill();
+  ctx.globalAlpha=a;
+}
+function drawGate(w,seg,n){
+  const p=seg.p1.screen, gw=p.w*1.26, gh=p.w*1.0;
+  if(gw<6)return;
+  /* clip to what this segment can actually see past, so the banner cannot
+     float over a hill that is in front of it */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0,0,w,Math.max(0,seg.clip)); ctx.clip();
+  ctx.globalAlpha=Math.max(.2,seg.fog);
+  const x=p.x-gw, y=p.y-gh;
+  const g=ctx.createLinearGradient(0,y,0,p.y);
+  g.addColorStop(0,'rgba(245,165,36,.10)'); g.addColorStop(1,'rgba(245,165,36,.4)');
+  ctx.fillStyle=g; ctx.fillRect(x,y,gw*2,gh);
+  ctx.strokeStyle='#f5a524'; ctx.lineWidth=Math.max(1.2,gw*.045);
+  ctx.beginPath();ctx.moveTo(x,p.y);ctx.lineTo(x,y);ctx.lineTo(x+gw*2,y);ctx.lineTo(x+gw*2,p.y);ctx.stroke();
+  const bh=Math.max(4,gh*.2);
+  ctx.fillStyle='#120e0b'; ctx.fillRect(x,y,gw*2,bh);
+  ctx.strokeStyle='#e5473a'; ctx.lineWidth=Math.max(1,gw*.02); ctx.strokeRect(x,y,gw*2,bh);
+  if(bh>11){
+    ctx.fillStyle='#f5a524'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='700 '+Math.round(bh*.6)+'px Barlow, sans-serif';
+    ctx.fillText('CHECKPOINT '+n,p.x,y+bh*.54);
+  }
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+function render(){
+  const w=cv.width,h=cv.height;
+  const base=findSegment(position), basePct=(position%SEG)/SEG;
+  const pSeg=findSegment(position+PLAYER_Z), pPct=((position+PLAYER_Z)%SEG)/SEG;
+  const pY=interp(pSeg.p1.world.y,pSeg.p2.world.y,pPct);
+  let maxy=h, x=0, dx=-(base.curve*basePct);
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,w,h);
+  if(shake>0){const s=shake*shake*h*.016;
+    ctx.setTransform(1,0,0,1,(Math.random()-.5)*s,(Math.random()-.5)*s);}
+  drawSky(w,h,h*.47,x+pY*.02+position*.0006);
+
+  for(let n=0;n<DRAW;n++){
+    const seg=segments[(base.index+n)%segments.length];
+    seg.looped=seg.index<base.index;
+    seg.fog=fogAt(n/DRAW);
+    seg.clip=maxy;
+    const camZ=position-(seg.looped?trackLength:0);
+    project(seg.p1,(playerX*ROAD_W)-x,     pY+CAM_H,camZ,w,h);
+    project(seg.p2,(playerX*ROAD_W)-x-dx,  pY+CAM_H,camZ,w,h);
+    x+=dx; dx+=seg.curve;
+    if(seg.p1.camera.z<=camDepth||seg.p2.screen.y>=seg.p1.screen.y||seg.p2.screen.y>=maxy) continue;
+    renderSeg(w,3,seg.p1.screen.x,seg.p1.screen.y,seg.p1.screen.w,
+                  seg.p2.screen.x,seg.p2.screen.y,seg.p2.screen.w,seg.fog,seg.dark);
+    maxy=seg.p2.screen.y;
+  }
+  for(let n=DRAW-1;n>0;n--){
+    const seg=segments[(base.index+n)%segments.length];
+    for(const c of seg.cars){
+      const im=SPR[c.key]; if(!im) continue;
+      const pct=((c.z%SEG)/SEG);
+      const sx=interp(seg.p1.screen.x,seg.p2.screen.x,pct);
+      const sy=interp(seg.p1.screen.y,seg.p2.screen.y,pct);
+      const sc=interp(seg.p1.screen.scale,seg.p2.screen.scale,pct);
+      const cx=sx+sc*c.offset*ROAD_W*w/2;
+      ctx.globalAlpha=Math.max(.12,seg.fog);
+      const dw=drawSprite(w,im,sc,cx,sy,-0.5,-1,seg.clip);
+      ctx.globalAlpha=1;
+      if(c.spark>0&&SPR.fxSpark){
+        ctx.globalAlpha=Math.min(1,c.spark*2.4);
+        drawSprite(w,SPR.fxSpark,sc,cx,sy-dw*(im.height/im.width)*.55,-0.5,-0.5,0);
+        ctx.globalAlpha=1;
+      }
+      if(dw>48){
+        ctx.textAlign='center';ctx.textBaseline='alphabetic';
+        ctx.font='700 '+Math.min(16,Math.round(dw*.2))+'px Barlow, sans-serif';
+        const ty=sy-dw*(im.height/im.width)-6;
+        const tw=ctx.measureText(c.name).width+10;
+        ctx.fillStyle='rgba(18,14,11,.74)';
+        ctx.fillRect(cx-tw/2,ty-13,tw,16);
+        ctx.fillStyle='#e5473a';ctx.fillText(c.name,cx,ty);
+      }
+    }
+    for(const s of seg.sprites){
+      const sc=seg.p1.screen.scale, sx=seg.p1.screen.x+sc*s.offset*ROAD_W*w/2;
+      if(SPR[s.key]){
+        ctx.globalAlpha=Math.max(.1,seg.fog);
+        drawSprite(w,SPR[s.key],sc,sx,seg.p1.screen.y,s.offset<0?-1:0,-1,seg.clip);
+        ctx.globalAlpha=1;
+      }
+    }
+    if(seg.gate) drawGate(w,seg,seg.gate.n);
+  }
+  /* player */
+  const spd=speed/MAX_SPEED;
+  const bob=1+Math.sin(total*.0009)*.0014*spd;
+  let img;
+  if(state==='down'&&SPR.fall) img=SPR.fall;
+  else if(atk>0&&SPR.atk1)     img=(atk>.21?SPR.atk1:SPR.atk2);
+  else img = tilt<0?SPR.dadaL : tilt>0?SPR.dadaR : SPR.dada;
+  const dw=img.width*(img.mul||1)*(camDepth/PLAYER_Z)*w/2*(SPRITE_SCALE*ROAD_W);
+  const dh=dw*(img.height/img.width);
+  const lift=air*(camDepth/PLAYER_Z)*h/2;
+  const px0=w/2-dw/2+dw*tilt*.1, py0=h*bob-dh*1.02-lift;
+
+  /* road dust kicked up behind the bike */
+  if(SPR.fxRoad&&spd>.12&&state!=='down'){
+    const fw=dw*1.15, fh=fw*(SPR.fxRoad.height/SPR.fxRoad.width);
+    ctx.globalAlpha=Math.min(.5,spd*.5);
+    ctx.drawImage(SPR.fxRoad,w/2-fw/2,py0+dh-fh*.62,fw,fh);
+    ctx.globalAlpha=1;
+  }
+  /* skid dust when off the tarmac */
+  if(SPR.fxSkid&&(playerX<-1||playerX>1)&&spd>.2&&state!=='down'){
+    const fw=dw*.95, fh=fw*(SPR.fxSkid.height/SPR.fxSkid.width);
+    ctx.globalAlpha=.65;
+    ctx.drawImage(SPR.fxSkid,w/2-fw/2+(playerX<0?-dw*.3:dw*.3),py0+dh-fh*.8,fw,fh);
+    ctx.globalAlpha=1;
+  }
+  /* the shadow stays on the tarmac and shrinks as he climbs */
+  if(lift>1){
+    const k=Math.max(.25,1-lift/(dh*1.1));
+    ctx.globalAlpha=k;
+    contactShadow(w/2,py0+dh+lift,dw*k);
+    ctx.globalAlpha=1;
+  } else contactShadow(w/2,py0+dh,dw);
+  const pitch=STRAIGHT_FIX+(lift>1?-Math.min(.17,airV*.00004):0);
+  if(img===SPR.dada&&pitch){
+    ctx.save(); ctx.translate(px0+dw/2,py0+dh); ctx.rotate(pitch);
+    ctx.drawImage(img,-dw/2,-dh,dw,dh); ctx.restore();
+  } else ctx.drawImage(img,px0,py0,dw,dh);
+  /* brake light */
+  if(SPR.fxBrake&&keys.down&&state==='race'){
+    const fw=dw*.5, fh=fw*(SPR.fxBrake.height/SPR.fxBrake.width);
+    ctx.globalAlpha=.9; ctx.drawImage(SPR.fxBrake,w/2-fw/2,py0+dh*.52,fw,fh); ctx.globalAlpha=1;
+  }
+  /* speed lines once the old man is really moving */
+  if(SPR.fxLines&&spd>.82&&state!=='down'){
+    const a=(spd-.82)/.18*.5, fw=w*.42, fh=fw*(SPR.fxLines.height/SPR.fxLines.width);
+    ctx.globalAlpha=a;
+    ctx.drawImage(SPR.fxLines,-fw*.12,h*.62,fw,fh);
+    ctx.save(); ctx.translate(w,0); ctx.scale(-1,1);
+    ctx.drawImage(SPR.fxLines,-fw*.12,h*.62,fw,fh); ctx.restore();
+    ctx.globalAlpha=1;
+  }
+
+  /* one warm pass over everything, so painted sprites and drawn road share a light */
+  ctx.globalCompositeOperation='overlay';
+  ctx.globalAlpha=.17;
+  const grade=ctx.createLinearGradient(0,h*.3,0,h);
+  grade.addColorStop(0,'#ff8c3f'); grade.addColorStop(1,'#2b1742');
+  ctx.fillStyle=grade; ctx.fillRect(0,0,w,h);
+  ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=1;
+  const vig=ctx.createRadialGradient(w/2,h*.56,Math.min(w,h)*.26,w/2,h*.56,Math.max(w,h)*.7);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(12,7,20,.52)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,w,h);
+
+  if(flash>0){ctx.globalAlpha=flash*.3;ctx.fillStyle=flashCol;ctx.fillRect(0,0,w,h);ctx.globalAlpha=1}
+  ctx.setTransform(1,0,0,1,0,0);
+}
+
+/* ============================ loop ============================ */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000); last=now;
+  update(dt); render(); tickClock();
+  requestAnimationFrame(frame);
+}
+
+/* ============================ input ============================ */
+const K={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down'};
+addEventListener('keydown',e=>{
+  const k=K[e.key]||K[e.key.toLowerCase()];
+  if(k){keys[k]=true;e.preventDefault()}
+  if(state==='question'){
+    if(k==='left'&&!lockL)answer(0);
+    if(k==='right'&&!lockR)answer(1);
+  }
+  else if(state==='race'&&(e.key===' ')){ e.preventDefault(); swing(); }
+  else if(state==='verdict'&&(e.key===' '||e.key==='Enter')){e.preventDefault();resume()}
+  else if(state==='menu'&&(e.key===' '||e.key==='Enter')){e.preventDefault();openPick()}
+  else if(state==='pick'){
+    if(e.key==='1'){e.preventDefault();begin(6)}
+    else if(e.key==='2'){e.preventDefault();begin(9)}
+    else if(e.key==='3'){e.preventDefault();begin(12)}
+    else if(e.key==='Escape'){e.preventDefault();setState('menu')}
+  }
+  else if(state==='deck'){
+    if(k==='left'){e.preventDefault();showSlide(slideN-1)}
+    else if(k==='right'){e.preventDefault();showSlide(slideN+1)}
+    else if(e.key==='Escape'){e.preventDefault();setState('menu')}
+  }
+});
+addEventListener('keyup',e=>{
+  const k=K[e.key]||K[e.key.toLowerCase()];
+  if(k){keys[k]=false;e.preventDefault(); if(k==='left')lockL=false; if(k==='right')lockR=false;}
+});
+function hold(btn,k){
+  const on=e=>{e.preventDefault();keys[k]=true}, off=e=>{e.preventDefault();keys[k]=false};
+  btn.addEventListener('pointerdown',on);btn.addEventListener('pointerup',off);
+  btn.addEventListener('pointerleave',off);btn.addEventListener('pointercancel',off);
+}
+hold(el('padL'),'left'); hold(el('padR'),'right');
+el('padA').addEventListener('pointerdown',e=>{e.preventDefault();swing()});
+hold(el('padG'),'up');
+el('optL').addEventListener('click',()=>answer(0));
+el('optR').addEventListener('click',()=>answer(1));
+el('vgo').addEventListener('click',resume);
+el('again').addEventListener('click',()=>setState('pick'));
+el('startgo').addEventListener('click',openPick);
+el('pickback').addEventListener('click',()=>setState('menu'));
+[].forEach.call(document.querySelectorAll('.route'),btn=>
+  btn.addEventListener('click',()=>begin(parseInt(btn.dataset.g,10)||12)));
+el('deckgo').addEventListener('click',openDeck);
+el('deckclose').addEventListener('click',()=>setState('menu'));
+el('prev').addEventListener('click',()=>showSlide(slideN-1));
+el('next').addEventListener('click',()=>showSlide(slideN+1));
+function begin(g){
+  TOTAL_GATES=g;
+  blip(220,.1,'triangle',.04);
+  buildDeck(); newRace();
+}
+function openPick(){ setState('pick'); blip(300,.07,'triangle',.04); }
+if(matchMedia('(hover: none)').matches) document.body.classList.add('touch');
+
+/* ===================== optional sprite atlas =====================
+   Drop assets/sprites.png + assets/sprites.json in and they replace the
+   canvas-drawn placeholders. Missing or malformed: the placeholders stay. */
+const ATLAS_KEYS=['dada','dadaL','dadaR','atk1','atk2','fall','lathi',
+                  'r1','r2','r3','r4','r5','r6','r7','r8','r9',
+                  'fxDust','fxSkid','fxBrake','fxSpark','fxLines','fxRoad',
+                  'palm','dhaba','milestone','tower','hoarding',
+                  'hoard0','hoard1','hoard2','hoard3','hoard4','hoard5','hoard6','hoard7',
+                  'mile0','mile1','mile2','mile3',
+                  'bld0','bld1','bld2','bld3','bld4','bld5'];
+async function loadAtlas(){
+  let man;
+  try{
+    const res=await fetch('assets/sprites.json',{cache:'no-cache'});
+    if(!res.ok) return;
+    man=await res.json();
+  }catch(e){ return; }
+  const frames=man.frames||man, src=man.image||'assets/sprites.png';
+  const sheet=await new Promise(done=>{
+    const i=new Image(); i.onload=()=>done(i); i.onerror=()=>done(null); i.src=src;
+  });
+  if(!sheet) return;
+  let n=0, bad=[];
+  for(const k of ATLAS_KEYS){
+    const f=frames[k]; if(!f) continue;
+    const fw=f.w||f.width, fh=f.h||f.height;
+    if(!fw||!fh){ bad.push(k); continue; }
+    const c=document.createElement('canvas'); c.width=fw; c.height=fh;
+    c.getContext('2d').drawImage(sheet,f.x||0,f.y||0,fw,fh,0,0,fw,fh);
+    c.mul=f.scale||man.scale||1;
+    SPR[k]=c; n++;
+  }
+  if(frames.dada){ if(!frames.dadaL) SPR.dadaL=SPR.dada; if(!frames.dadaR) SPR.dadaR=SPR.dada; }
+  if(n) console.log('[sawaari] atlas loaded, '+n+' frames'+(bad.length?' | skipped (no w/h): '+bad.join(', '):''));
+}
+
+/* ============================ boot ============================ */
+function start(saved){
+  buildSprites(); buildTrack(); resize();
+  try{best=parseInt(localStorage.getItem('dks-best')||'0',10)||0}catch(e){best=0}
+  if(saved&&saved.best&&saved.best>best) best=saved.best;
+  const top=readBoard()[0]; if(top&&top.s>best) best=top.s;
+  buildTicks();
+  paintTopRun();
+  buildDeck(); setState('menu');
+  position=1600; total=1600;
+  cars=RIVALS.map((r,i)=>{const c={name:r.name,key:r.key,offset:(i-4)*.23,
+      total:9000+i*2100,speed:MAX_SPEED*.7,z:0,stun:0,aggro:0,spark:0};c.z=loopZ(c.total,0);
+    findSegment(c.z).cars.push(c);return c});
+  requestAnimationFrame(frame);
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>{buildSprites();loadAtlas()});
+  else loadAtlas();
+}
+try{window.claude&&window.claude.hot&&window.claude.hot.snapshot(()=>({best:Math.max(best,score)}))}catch(e){}
+if(window.claude&&window.claude.hot&&window.claude.hot.ready) window.claude.hot.ready(start);
+else start({});
+</script>

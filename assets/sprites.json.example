@@ -1,0 +1,214 @@
+{
+  "meta": {
+    "app": "Dadaji Road-Rash-style educational racing game",
+    "image": "sprites_1536x1024.png",
+    "format": "RGBA",
+    "size": {
+      "w": 1536,
+      "h": 1024
+    },
+    "note": "Approximate reference regions only. The source sheet includes labels/background and is not yet a clean transparent production sprite atlas."
+  },
+  "frames": {
+    "drive_back_right_01": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 1015,
+        "h": 205
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1015,
+        "h": 205
+      },
+      "sourceSize": {
+        "w": 1015,
+        "h": 205
+      }
+    },
+    "coast_idle_back_view": {
+      "frame": {
+        "x": 0,
+        "y": 215,
+        "w": 425,
+        "h": 185
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 425,
+        "h": 185
+      },
+      "sourceSize": {
+        "w": 425,
+        "h": 185
+      }
+    },
+    "brake_slow_down": {
+      "frame": {
+        "x": 430,
+        "y": 215,
+        "w": 575,
+        "h": 185
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 575,
+        "h": 185
+      },
+      "sourceSize": {
+        "w": 575,
+        "h": 185
+      }
+    },
+    "turn_left_lean": {
+      "frame": {
+        "x": 0,
+        "y": 400,
+        "w": 460,
+        "h": 185
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 460,
+        "h": 185
+      },
+      "sourceSize": {
+        "w": 460,
+        "h": 185
+      }
+    },
+    "turn_right_lean": {
+      "frame": {
+        "x": 460,
+        "y": 400,
+        "w": 390,
+        "h": 185
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 390,
+        "h": 185
+      },
+      "sourceSize": {
+        "w": 390,
+        "h": 185
+      }
+    },
+    "lane_change": {
+      "frame": {
+        "x": 850,
+        "y": 400,
+        "w": 165,
+        "h": 185
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 165,
+        "h": 185
+      },
+      "sourceSize": {
+        "w": 165,
+        "h": 185
+      }
+    },
+    "attack_hit": {
+      "frame": {
+        "x": 0,
+        "y": 590,
+        "w": 540,
+        "h": 205
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 540,
+        "h": 205
+      },
+      "sourceSize": {
+        "w": 540,
+        "h": 205
+      }
+    },
+    "hit_reaction": {
+      "frame": {
+        "x": 540,
+        "y": 590,
+        "w": 305,
+        "h": 205
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 305,
+        "h": 205
+      },
+      "sourceSize": {
+        "w": 305,
+        "h": 205
+      }
+    },
+    "fall_off_bike": {
+      "frame": {
+        "x": 845,
+        "y": 590,
+        "w": 170,
+        "h": 205
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 170,
+        "h": 205
+      },
+      "sourceSize": {
+        "w": 170,
+        "h": 205
+      }
+    },
+    "bike_props_effects": {
+      "frame": {
+        "x": 0,
+        "y": 795,
+        "w": 1536,
+        "h": 229
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 1536,
+        "h": 229
+      },
+      "sourceSize": {
+        "w": 1536,
+        "h": 229
+      }
+    }
+  }
+}
