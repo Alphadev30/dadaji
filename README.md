@@ -1,5 +1,7 @@
 # Dadaji Ki Sawaari
 
+**Play it: https://alphadev30.github.io/dadaji/**
+
 A checkpoint racer that trains financial awareness and cyber safety.
 Prototype for the CDSL Reimagine Ideathon 2026.
 
@@ -28,12 +30,12 @@ broken and you will not be told why. Always serve it over HTTP.
 git init -b main
 git add .
 git commit -m "Dadaji Ki Sawaari prototype"
-git remote add origin https://github.com/<you>/dadaji-ki-sawaari.git
+git remote add origin https://github.com/Alphadev30/dadaji.git
 git push -u origin main
 ```
 
 Then: repo **Settings → Pages → Source: Deploy from a branch → `main` / `/ (root)`**.
-Live in about a minute at `https://<you>.github.io/dadaji-ki-sawaari/`.
+Live in about a minute at **https://alphadev30.github.io/dadaji/**.
 
 The repo must be **public** for Pages on a free account.
 
@@ -46,6 +48,7 @@ The repo must be **public** for Pages on a free account.
 | `assets/sprites.json` | Frame rectangles and per-frame scale |
 | `assets/sprites_*.png` | Original concept sheets, kept as source art |
 | `assets/README.md` | How to replace the art |
+| `Dadaji-Ki-Sawaari-Approach-Note.pdf` | Three-page approach and prototype note |
 
 ## Tuning
 
